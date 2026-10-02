@@ -6,7 +6,9 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
-First version.
+## [0.1.0] - 2026-10-02
+
+First release.
 
 ### Added
 
@@ -31,3 +33,6 @@ First version.
   margins, font sizes and spacing of the MIF file, as a starting point for the PDF.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
+
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Jeanluc304/mifport/releases/tag/v0.1.0
