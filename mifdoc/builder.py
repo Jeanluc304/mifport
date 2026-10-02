@@ -14,7 +14,7 @@ from . import model as m
 from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, length, lengths,
                       numbering)
 from .mif import Node
-from .roles import Mapping, tag_number, tag_role
+from .roles import Mapping, is_sub, tag_number, tag_role
 
 # Char statements -> text. None means a line break; '' means nothing visible.
 CHARS = {
@@ -359,8 +359,9 @@ class Builder:
     def _heading_levels(self):
         """Heading level for every tag with the role 'heading'.
 
-        Tags are ranked by font size (larger first), then by the number in the tag name
-        (Heading1 before Heading2); the rank is the level.
+        Tags are ranked by font size (larger first), then by 'Sub' in the name (Heading
+        before SubHeading), then by the number in the tag name (Heading1 before Heading2;
+        no number counts as 1); the rank is the level.
         """
         keys = {}
         for p in self.body_paras:
@@ -368,7 +369,8 @@ class Builder:
             if self.role(props) == 'heading':
                 size = length(props['font'].get('FSize', '12'))
                 num = tag_number(props['tag'])
-                keys[props['tag']] = (-round(size, 1), num if num is not None else 99)
+                keys[props['tag']] = (-round(size, 1), is_sub(props['tag']),
+                                      num if num is not None else 1)
         ranked = sorted(set(keys.values()))
         return {tag: ranked.index(k) + 1 for tag, k in keys.items()}
 
