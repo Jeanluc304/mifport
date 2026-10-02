@@ -8,8 +8,9 @@ All notable changes to this project are listed here. The format follows
 
 ### Added
 
-- Paragraph tags using the abbreviations *Hed*/*Head* (`H-Hed`, `2Hed`, `ChapHead`,
-  `SubHead`) are recognised as headings.
+- Paragraph tags ending in the abbreviations *Hed*/*Head* (`H-Hed`, `2Hed`, `ChapHead`,
+  `SubHead`) are recognised as headings; *Head* followed by another word (`HeadNote`,
+  `HeadRule`) is not.
 
 ### Changed
 
@@ -17,8 +18,10 @@ All notable changes to this project are listed here. The format follows
   in the name ranks a tag one level lower (`H2-SubHed`), and a tag without a number ranks
   like number 1 instead of last. Formerly `1Heading`, `2Heading` and `3Heading` of the
   same size were all level 1.
-- `ColumnHead`/`ColumnHeading` and other names with *Column* or *Spalte* are no longer
-  headings.
+- No longer headings: names with *Column* or *Spalte* (`ColumnHead`), with *After*,
+  *Nach* or *Following* (`BodyAfterHead`, `BodyAfterHeading`; but `AfterwordHeading`,
+  `NachwortHeading` and `NachtragHeading` stay headings), with *Running* or *RunHead*
+  (running headers), and `FigHead` (figure captions).
 
 ## [0.1.0] - 2026-10-02
 

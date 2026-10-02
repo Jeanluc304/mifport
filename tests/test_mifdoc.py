@@ -127,12 +127,15 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(split_index('a;b:c<$nopage>;[sort]d'), [['a'], ['b', 'c'], ['d']])
 
     def test_hed_and_head_headings(self):
-        headings = ['H-Hed', 'H2-SubHed', '1Hed', '2Hed', 'Hed', 'ChapHead', 'Head1', 'HEAD',
-                    'SUBHEAD', 'head-2', 'sub-head', 'Subhead', 'Subhed', 'SideHead',
-                    '1c-1HedContinue', 'Heading1', 'Headline']
+        headings = ['H-Hed', 'H2-SubHed', '1Hed', '2Hed', 'Hed', 'ChapHead', 'ChapterHead',
+                    'PartHead', 'SideHead', 'Head1', 'Head 2', 'Head_3', 'Head.1', 'HEAD',
+                    'SUBHEAD', 'head-2', 'sub-head', 'Subhead', 'Subhed', 'Heading1', 'Headline',
+                    'AfterwordHeading', 'NachwortHeading', 'NachtragHeading']
         others = ['Header', 'HEADER', 'Attached', 'Finished', 'Shed', 'Ahead', 'Hedge', 'Overhead',
                   'Forehead', 'Bulkhead', 'Masthead', 'Heads', 'TableHead', 'CellHead',
-                  'ColumnHead', 'RunInHead']
+                  'ColumnHead', 'RunInHead', 'BodyAfterHead', 'BodyAfterHed', 'FirstAfterHead',
+                  'BodyAfterHeading', 'HeadNote', 'HeadRule', 'RunningHead', 'RunHead', 'FigHead',
+                  '1c-1HedContinue']
         self.assertEqual([t for t in headings if tag_role(t) != 'heading'], [])
         self.assertEqual([t for t in others if tag_role(t) == 'heading'], [])
 
@@ -465,6 +468,17 @@ class HandWrittenMifTest(unittest.TestCase):
         self.assertEqual([(h.level, m.plain(h.inlines)) for h in doc.blocks
                           if isinstance(h, m.Heading)],
                          [(1, 'Usage'), (2, 'Options'), (3, 'Overview'), (4, 'Details')])
+
+    def test_body_after_head_is_a_paragraph(self):
+        catalog = ("<PgfCatalog <Pgf <PgfTag `Body'> <PgfFont <FSize 10 pt>>>"
+                   " <Pgf <PgfTag `H-Hed'> <PgfFont <FSize 12 pt>>>"
+                   " <Pgf <PgfTag `BodyAfterHead'> <PgfFont <FSize 12 pt>>>>")
+        body = ("<Para <PgfTag `H-Hed'> <ParaLine <String `Usage'>>>"
+                "<Para <PgfTag `BodyAfterHead'> <ParaLine <String `Run the tool.'>>>")
+        doc, _ = doc_from(body, catalog=catalog)
+        self.assertEqual([m.plain(h.inlines) for h in doc.blocks if isinstance(h, m.Heading)],
+                         ['Usage'])
+        self.assertIn('Run the tool.', [m.plain(p.inlines) for p in self.paras(doc)])
 
     def test_no_pages(self):
         for text in ("<MIFFile 2015>\n<Para <ParaLine <String `hello'>>>",

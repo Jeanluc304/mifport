@@ -132,9 +132,10 @@ The role of a tag comes from, in this order:
 1. the mapping file given with `--map`;
 2. the tag name, for example: `Title`/`Titel` is the document title; names containing
    `Heading`, `Überschrift`, `Chapter`, `Kapitel`, `Section` or like `H1` and `Title2` are
-   headings, and so are names with the old abbreviations *Head* and *Hed* such as
-   `ChapHead`, `SubHead`, `H-Hed` and `2Hed` (but not `TableTitle`, `CellHeading`,
-   `ColumnHead`, `HeadingRunIn`, TOC and index formats …); `Code` and `Listing` are code;
+   headings, and so are names ending in the old abbreviations *Head* and *Hed* such as
+   `ChapHead`, `SubHead`, `H-Hed` and `2Hed` (but not `HeadNote`, nor `TableTitle`,
+   `CellHeading`, `ColumnHead`, `BodyAfterHead`, `RunningHead`, `HeadingRunIn`, TOC and
+   index formats …); `Code` and `Listing` are code;
    `Quote`, `Zitat` and `Extract` are quotes (the full rules are in `mifdoc/roles.py`);
 3. the autonumber format: a symbol such as `•\t` makes a bulleted list, a counter such as
    `<n+>.\t` a numbered list (`<n=1>` starts a new list);

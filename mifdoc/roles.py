@@ -17,15 +17,22 @@ CHAR_ROLES = {'plain': None, 'bold': BOLD, 'italic': ITALIC, 'code': CODE, 'supe
 TITLE = re.compile(r'(document|doc|dokument)?[ ._-]?(title|titel)', re.I)
 HEADING = re.compile(r'heading|überschrift|ueberschrift|headline|kapitel|chapter|section|'
                      r'abschnitt|^h[1-9]$|^(title|titel)[ ._-]?[0-9]', re.I)
-# "Hed"/"Head" as a word part, not inside a word (Shed, Ahead, Overhead, Hedge): at the start or
-# after a non-letter (H-Hed, 2Hed, head-2, sub-head) or at a CamelCase boundary (SubHed, ChapHead).
-# Case-sensitive on purpose, so that CamelCase boundaries can be seen.
-HED = re.compile(r'(?:(?<![A-Za-z])|(?<=[a-z]))(?:(?:Sub)?(?:Hed|Head)|Sub(?:hed|head))(?![a-z])|'
-                 r'(?<![A-Za-z])(?:SUB)?(?:HED|HEAD)(?![A-Za-z])|'
-                 r'(?<![A-Za-z])(?:sub)?(?:hed|head)(?![a-z])')
-NOT_HEADING = re.compile(r'table|tabelle|tbl|column|spalte|figure|fig\b|abbildung|bild|toc|lof|'
-                         r'lot|index|cell|zelle|run-?in|header|footer|kopfzeile|fußzeile|fusszeile|'
-                         r'mapping|ix$', re.I)
+# "Hed"/"Head" as the last word part of the name: at the start or after a non-letter (H-Hed,
+# 2Hed, head-2, sub-head) or at a CamelCase boundary (SubHed, ChapHead), and followed only by
+# the end, white space, a digit, '.', '_' or '-'. Not inside a word (Shed, Ahead, Overhead,
+# Hedge) and not followed by another word (HeadNote, HeadRule). Case-sensitive on purpose, so
+# that CamelCase boundaries can be seen.
+_END = r'(?=$|[\s\d._-])'
+HED = re.compile(r'(?:(?<![A-Za-z])|(?<=[a-z]))(?:(?:Sub)?(?:Hed|Head)|Sub(?:hed|head))' + _END
+                 + r'|(?<![A-Za-z])(?:SUB)?(?:HED|HEAD)' + _END
+                 + r'|(?<![A-Za-z])(?:sub)?(?:hed|head)' + _END)
+# fig(?-i:...): case-sensitive look-ahead, so that FigHead is excluded but Fig stays one word.
+# after/nach/following: a body paragraph after a heading (BodyAfterHead), but not Afterword,
+# Nachwort or Nachtrag.
+NOT_HEADING = re.compile(r'table|tabelle|tbl|column|spalte|figure|fig(?-i:(?![a-z]))|abbildung|'
+                         r'bild|toc|lof|lot|index|cell|zelle|run-?in|running|runhead|'
+                         r'after(?!word)|nach(?!wort|trag)|following|header|footer|kopfzeile|'
+                         r'fußzeile|fusszeile|mapping|ix$', re.I)
 CODE_TAG = re.compile(r'^(code|codeblock|listing|programlisting|quellcode|sourcecode|pre)\b', re.I)
 QUOTE_TAG = re.compile(r'^(quote|blockquote|zitat|extract)\b', re.I)
 
