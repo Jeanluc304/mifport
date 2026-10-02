@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
 ### Added
 
 - Paragraph tags ending in the abbreviations *Hed*/*Head* (`H-Hed`, `2Hed`, `ChapHead`,
@@ -51,5 +53,6 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Jeanluc304/mifport/releases/tag/v0.1.0
