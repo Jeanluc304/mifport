@@ -132,16 +132,18 @@ The role of a tag comes from, in this order:
 1. the mapping file given with `--map`;
 2. the tag name, for example: `Title`/`Titel` is the document title; names containing
    `Heading`, `Überschrift`, `Chapter`, `Kapitel`, `Section` or like `H1` and `Title2` are
-   headings (but not `TableTitle`, `CellHeading`, `HeadingRunIn`, TOC and index formats
-   …); `Code` and `Listing` are code; `Quote`, `Zitat` and `Extract` are quotes (the full
-   rules are in `mifdoc/roles.py`);
+   headings, and so are names with the old abbreviations *Head* and *Hed* such as
+   `ChapHead`, `SubHead`, `H-Hed` and `2Hed` (but not `TableTitle`, `CellHeading`,
+   `ColumnHead`, `HeadingRunIn`, TOC and index formats …); `Code` and `Listing` are code;
+   `Quote`, `Zitat` and `Extract` are quotes (the full rules are in `mifdoc/roles.py`);
 3. the autonumber format: a symbol such as `•\t` makes a bulleted list, a counter such as
    `<n+>.\t` a numbered list (`<n=1>` starts a new list);
 4. the font: a monospaced font makes a code block;
 5. otherwise a normal paragraph.
 
-Heading levels are ranked by font size, then by the number in the tag name. Run
-`--list-tags` to see the result:
+Heading levels are ranked by font size, then by *Sub* in the tag name (`SubHead` comes
+after `Head`), then by the number in the tag name, at the end or at the start (`Heading2`,
+`2Hed`; a name without a number counts as 1). Run `--list-tags` to see the result:
 
 ```
 $ python3 mif2md.py --list-tags samples/sample/sample.mif

@@ -6,6 +6,20 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Paragraph tags using the abbreviations *Hed*/*Head* (`H-Hed`, `2Hed`, `ChapHead`,
+  `SubHead`) are recognised as headings.
+
+### Changed
+
+- Heading levels: a number at the start of a tag name counts (`2Hed`, `2Heading`), *Sub*
+  in the name ranks a tag one level lower (`H2-SubHed`), and a tag without a number ranks
+  like number 1 instead of last. Formerly `1Heading`, `2Heading` and `3Heading` of the
+  same size were all level 1.
+- `ColumnHead`/`ColumnHeading` and other names with *Column* or *Spalte* are no longer
+  headings.
+
 ## [0.1.0] - 2026-10-02
 
 First release.

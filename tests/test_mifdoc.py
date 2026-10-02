@@ -23,6 +23,7 @@ from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
 from mifdoc.builder import Builder, split_index  # noqa: E402
 from mifdoc.formats import numbering  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
+from mifdoc.roles import is_sub, tag_number, tag_role  # noqa: E402
 
 SAMPLE = os.path.join(ROOT, 'samples', 'sample')
 EXPECTED = os.path.join(SAMPLE, 'expected')
@@ -124,6 +125,24 @@ class RulesTest(unittest.TestCase):
 
     def test_index_entries(self):
         self.assertEqual(split_index('a;b:c<$nopage>;[sort]d'), [['a'], ['b', 'c'], ['d']])
+
+    def test_hed_and_head_headings(self):
+        headings = ['H-Hed', 'H2-SubHed', '1Hed', '2Hed', 'Hed', 'ChapHead', 'Head1', 'HEAD',
+                    'SUBHEAD', 'head-2', 'sub-head', 'Subhead', 'Subhed', 'SideHead',
+                    '1c-1HedContinue', 'Heading1', 'Headline']
+        others = ['Header', 'HEADER', 'Attached', 'Finished', 'Shed', 'Ahead', 'Hedge', 'Overhead',
+                  'Forehead', 'Bulkhead', 'Masthead', 'Heads', 'TableHead', 'CellHead',
+                  'ColumnHead', 'RunInHead']
+        self.assertEqual([t for t in headings if tag_role(t) != 'heading'], [])
+        self.assertEqual([t for t in others if tag_role(t) == 'heading'], [])
+
+    def test_tag_number_and_sub(self):
+        numbers = {'Heading2': 2, 'Title2': 2, 'title.0': 0, '2Hed': 2, '1c-1HedContinue': 1,
+                   'H-Hed': None, 'ChapHead': None}
+        self.assertEqual({t: tag_number(t) for t in numbers}, numbers)
+        self.assertEqual([t for t in ('SubHeading', 'H2-SubHed', 'sub-head', 'SUBHEAD', 'Subhed')
+                          if not is_sub(t)], [])
+        self.assertEqual([t for t in ('Heading', 'H-Hed', 'ChapHead') if is_sub(t)], [])
 
 
 class SampleTest(unittest.TestCase):
@@ -432,6 +451,20 @@ class HandWrittenMifTest(unittest.TestCase):
                           "<Comment <Para <ParaLine <String `commented out'>>>>")
         self.assertEqual([m.plain(p.inlines) for p in self.paras(doc)],
                          ['start', 'pilcrow \N{PILCROW SIGN}'])
+
+    def test_hed_heading_levels(self):
+        catalog = ("<PgfCatalog <Pgf <PgfTag `Body'> <PgfFont <FSize 10 pt>>>"
+                   " <Pgf <PgfTag `H-Hed'> <PgfFont <FSize 14 pt>>>"
+                   " <Pgf <PgfTag `H2-SubHed'> <PgfFont <FSize 14 pt>>>"
+                   " <Pgf <PgfTag `1Hed'> <PgfFont <FSize 12 pt>>>"
+                   " <Pgf <PgfTag `2Hed'> <PgfFont <FSize 12 pt>>>>")
+        body = ''.join(f"<Para <PgfTag `{tag}'> <ParaLine <String `{text}'>>>" for tag, text in
+                       [('H-Hed', 'Usage'), ('H2-SubHed', 'Options'), ('1Hed', 'Overview'),
+                        ('2Hed', 'Details')])
+        doc, _ = doc_from(body, catalog=catalog)
+        self.assertEqual([(h.level, m.plain(h.inlines)) for h in doc.blocks
+                          if isinstance(h, m.Heading)],
+                         [(1, 'Usage'), (2, 'Options'), (3, 'Overview'), (4, 'Details')])
 
     def test_no_pages(self):
         for text in ("<MIFFile 2015>\n<Para <ParaLine <String `hello'>>>",

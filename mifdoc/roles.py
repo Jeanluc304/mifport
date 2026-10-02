@@ -17,8 +17,14 @@ CHAR_ROLES = {'plain': None, 'bold': BOLD, 'italic': ITALIC, 'code': CODE, 'supe
 TITLE = re.compile(r'(document|doc|dokument)?[ ._-]?(title|titel)', re.I)
 HEADING = re.compile(r'heading|überschrift|ueberschrift|headline|kapitel|chapter|section|'
                      r'abschnitt|^h[1-9]$|^(title|titel)[ ._-]?[0-9]', re.I)
-NOT_HEADING = re.compile(r'table|tabelle|tbl|figure|fig\b|abbildung|bild|toc|lof|lot|index|'
-                         r'cell|zelle|run-?in|header|footer|kopfzeile|fußzeile|fusszeile|'
+# "Hed"/"Head" as a word part, not inside a word (Shed, Ahead, Overhead, Hedge): at the start or
+# after a non-letter (H-Hed, 2Hed, head-2, sub-head) or at a CamelCase boundary (SubHed, ChapHead).
+# Case-sensitive on purpose, so that CamelCase boundaries can be seen.
+HED = re.compile(r'(?:(?<![A-Za-z])|(?<=[a-z]))(?:(?:Sub)?(?:Hed|Head)|Sub(?:hed|head))(?![a-z])|'
+                 r'(?<![A-Za-z])(?:SUB)?(?:HED|HEAD)(?![A-Za-z])|'
+                 r'(?<![A-Za-z])(?:sub)?(?:hed|head)(?![a-z])')
+NOT_HEADING = re.compile(r'table|tabelle|tbl|column|spalte|figure|fig\b|abbildung|bild|toc|lof|'
+                         r'lot|index|cell|zelle|run-?in|header|footer|kopfzeile|fußzeile|fusszeile|'
                          r'mapping|ix$', re.I)
 CODE_TAG = re.compile(r'^(code|codeblock|listing|programlisting|quellcode|sourcecode|pre)\b', re.I)
 QUOTE_TAG = re.compile(r'^(quote|blockquote|zitat|extract)\b', re.I)
@@ -28,7 +34,7 @@ def tag_role(tag):
     """The role suggested by a paragraph tag's name alone, or None."""
     if TITLE.fullmatch(tag.strip()):
         return 'title'
-    if HEADING.search(tag) and not NOT_HEADING.search(tag):
+    if (HEADING.search(tag) or HED.search(tag)) and not NOT_HEADING.search(tag):
         return 'heading'
     if CODE_TAG.search(tag):
         return 'code'
@@ -38,9 +44,19 @@ def tag_role(tag):
 
 
 def tag_number(tag):
-    """The level number in a tag name ('Heading2' -> 2, 'title.0' -> 0), or None."""
-    m = re.search(r'([0-9]+)\s*$', tag)
+    """The level number in a tag name ('Heading2' -> 2, 'title.0' -> 0, '2Hed' -> 2), or None.
+
+    A trailing number wins; otherwise a leading one is used."""
+    m = re.search(r'([0-9]+)\s*$', tag) or re.match(r'\s*([0-9]+)', tag)
     return int(m.group(1)) if m else None
+
+
+SUB_TAG = re.compile(r'(?:(?<![A-Za-z])|(?<=[a-z]))(?:Sub|SUB)|(?<![A-Za-z])sub')
+
+
+def is_sub(tag):
+    """Whether a tag name says it is a lower level ('SubHeading', 'H2-SubHed', 'sub-head')."""
+    return bool(SUB_TAG.search(tag))
 
 
 class Mapping:
