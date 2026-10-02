@@ -1,0 +1,13 @@
+{
+  "paragraphs": {
+    "Unterüberschrift": "heading3",
+    "Seitenkopf": "skip",
+    "Hinweis": "quote",
+    "Programmcode": "code"
+  },
+  "characters": {
+    "Hervorhebung": "italic",
+    "Befehl": "code",
+    "Wichtig": "bold italic"
+  }
+}

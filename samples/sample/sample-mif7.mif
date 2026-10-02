@@ -1,0 +1,199 @@
+<MIFFile 7.00> # written by make_sample.py
+<Units Upt>
+<ColorCatalog <Color <ColorTag `Black'> <ColorBlack 100.0>>>
+<TblCatalog <TblFormat <TblTag `Format B'> <TblTitlePlacement InFooter>>>
+<ConditionCatalog <Condition <CTag `Internal'> <CState CHidden>> <Condition <CTag `Comment'> <CState CShown>>>
+<PgfCatalog
+ <Pgf <PgfTag `Title'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 12.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 24.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Heading1'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 18.0 pt> <PgfSpAfter 6.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 18.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Heading2'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 12.0 pt> <PgfSpAfter 4.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 14.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Heading3'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 9.0 pt> <PgfSpAfter 3.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 12.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Subsection'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 9.0 pt> <PgfSpAfter 3.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 12.0 pt> <FWeight `Bold'> <FAngle `Italic'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Quote'> <PgfFIndent 10.0 mm> <PgfLIndent 10.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Italic'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Body'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 6.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Bulleted'> <PgfFIndent 5.0 mm> <PgfLIndent 10.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `\xa5 \\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Bulleted2'> <PgfFIndent 10.0 mm> <PgfLIndent 15.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `\xd0 \\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Numbered1'> <PgfFIndent 5.0 mm> <PgfLIndent 10.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `S:<n=1\>.\\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Numbered'> <PgfFIndent 5.0 mm> <PgfLIndent 10.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `S:<n+\>.\\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Indented'> <PgfFIndent 10.0 mm> <PgfLIndent 10.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Times'> <FSize 11.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Code'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Courier New'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `TableTitle'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `T:Table <n+\>: '> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 10.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `CellHeading'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Helvetica'> <FSize 10.0 pt> <FWeight `Bold'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `CellBody'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Times'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `CellNumbered1'> <PgfFIndent 0.0 mm> <PgfLIndent 5.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `S:<n=1\>.\\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `CellNumbered'> <PgfFIndent 0.0 mm> <PgfLIndent 5.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `S:<n+\>.\\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `CellBullet'> <PgfFIndent 0.0 mm> <PgfLIndent 5.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `\xa5 \\t'> <PgfFont <FTag `'> <FFamily `Times'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Footnote'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum No> <PgfFont <FTag `'> <FFamily `Times'> <FSize 9.0 pt> <FWeight `Regular'> <FAngle `Regular'> <FLanguage USEnglish>>>
+ <Pgf <PgfTag `Figure'> <PgfFIndent 0.0 mm> <PgfLIndent 0.0 mm> <PgfSpBefore 0.0 pt> <PgfSpAfter 0.0 pt> <PgfLeading 2.0 pt> <PgfAutoNum Yes> <PgfNumFormat `F:Figure <n+\>: '> <PgfFont <FTag `'> <FFamily `Times'> <FSize 10.0 pt> <FWeight `Regular'> <FAngle `Italic'> <FLanguage USEnglish>>>
+>
+<FontCatalog
+ <Font <FTag `Emphasis'> <FAngle `Italic'>>
+ <Font <FTag `Strong'> <FWeight `Bold'>>
+ <Font <FTag `Command'> <FFamily `Courier New'>>
+>
+<VariableFormats <VariableFormat <VariableName `Version'> <VariableDef `1.2'>> <VariableFormat <VariableName `Page Count'> <VariableDef `<$lastpagenum\>'>>>
+<XRefFormats <XRefFormat <XRefName `Heading & Page'> <XRefDef `\xd2 <$paratext\>\xd3  on page<$pagenum\>'>>>
+<Document <DPageSize 210.0 mm 297.0 mm> <DLanguage USEnglish>>
+
+<AFrames
+ <Frame
+  <ID 5>
+  <FrameType Below>
+  <ShapeRect 0.0 mm 0.0 mm 80.0 mm 40.0 mm>
+  <ImportObject
+   <ImportObFileDI `<c\>Graphics<c\>dot.png'>
+   <ShapeRect 0.0 mm 0.0 mm 80.0 mm 40.0 mm>
+  >
+ >
+ <Frame
+  <ID 6>
+  <FrameType Below>
+  <ShapeRect 0.0 mm 0.0 mm 20.0 mm 20.0 mm>
+  <ImportObject
+   <ImportObEditor `FrameImage'>
+   <ImportObFile `2.0 internal inset'>
+=EPSI
+&%v
+&%!PS-Adobe-3.0 EPSF-3.0 <not a statement> `not a string # not a comment
+=EndInset
+   <ShapeRect 0.0 mm 0.0 mm 20.0 mm 20.0 mm>
+  >
+ >
+ <Frame
+  <ID 7>
+  <FrameType Inline>
+  <ShapeRect 0.0 mm 0.0 mm 6.0 mm 3.0 mm>
+  <ImportObject <ImportObFileDI `<c\>Graphics<c\>dot.png'> <ShapeRect 0.0 mm 0.0 mm 6.0 mm 3.0 mm>>
+ >
+ <Frame
+  <ID 8>
+  <FrameType Below>
+  <ShapeRect 0.0 mm 0.0 mm 30.0 mm 15.0 mm>
+  <ImportObject <ImportObFileDI `<c\>Graphics<c\>dot.png'> <ShapeRect 0.0 mm 0.0 mm 30.0 mm 15.0 mm>>
+ >
+ <Frame
+  <ID 9>
+  <FrameType Below>
+  <ShapeRect 0.0 mm 0.0 mm 80.0 mm 40.0 mm>
+  <ImportObject <ImportObFileDI `<c\>Graphics<c\>dot.png'> <ShapeRect 0.0 mm 0.0 mm 80.0 mm 40.0 mm>>
+  <ImportObject <ImportObFileDI `<c\>Graphics<c\>dot.png'> <ShapeRect 10.0 mm 10.0 mm 16.0 mm 8.0 mm>>
+ >
+>
+
+
+<Tbls
+ <Tbl
+  <TblID 1>
+  <TblTag `Format A'>
+  <TblNumColumns 3>
+  <TblColumnWidth 40.0 mm>
+  <TblColumnWidth 40.0 mm>
+  <TblColumnWidth 80.0 mm>
+  <TblTitle <TblTitleContent
+   <Para <PgfTag `TableTitle'> <PgfNumString `Table 1: '> <ParaLine <String `Sample table'>>>>>
+  <TblH
+   <Row
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Name'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Value'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Notes'>>>>>
+   >
+  >
+  <TblBody
+   <Row
+    <Cell <CellColumns 2> <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `Spans two columns'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `(covered)'>>>>>
+    <Cell <CellRows 2> <CellContent
+     <Para <PgfTag `CellBody'> <ParaLine <String `Spans two rows.'>>>
+     <Para <PgfTag `CellBody'> <ParaLine <String `Second paragraph | with a bar.'>>>>>
+   >
+   <Row
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `alpha'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `42'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `(covered)'>>>>>
+   >
+  >
+ >
+ <Tbl
+  <TblID 2>
+  <TblTag `Format B'>
+  <TblNumColumns 2>
+  <TblColumnWidth 50.0 mm>
+  <TblColumnWidth 90.0 mm>
+  <TblTitle <TblTitleContent
+   <Para <PgfTag `TableTitle'> <PgfNumString `Table 2: '> <ParaLine <String `Parts'>>>>>
+  <TblH
+   <Row
+    <Cell <CellColumns 2> <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Parts and notes'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `(covered)'>>>>>
+   >
+   <Row
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Part'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellHeading'> <ParaLine <String `Notes'>>>>>
+   >
+  >
+  <TblBody
+   <Row
+    <Cell <CellContent
+     <Para <PgfTag `CellNumbered1'> <PgfNumString `1.\t'> <ParaLine <String `Open the lid'>>>
+     <Para <PgfTag `CellNumbered'> <PgfNumString `2.\t'> <ParaLine <String `Close it again'>>>>>
+    <Cell <CellContent
+     <Notes <FNote <ID 2> <Para <PgfTag `Footnote'> <ParaLine <String `A note from a table cell.'>>>>>
+     <Para <PgfTag `CellBody'> <ParaLine <String `Handle with care'> <FNote 2> <String `.'>>>>>
+   >
+   <Row
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <AFrame 8>>>>>
+    <Cell <CellContent
+     <Para <PgfTag `CellBullet'> <PgfNumString `\xa5 \t'> <ParaLine <String `light'>>>
+     <Para <PgfTag `CellBullet'> <PgfNumString `\xa5 \t'> <ParaLine <String `small'>>>>>
+   >
+  >
+  <TblF
+   <Row
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `Total'>>>>>
+    <Cell <CellContent <Para <PgfTag `CellBody'> <ParaLine <String `2 parts'>>>>>
+   >
+  >
+ >
+>
+
+<Page <PageType BodyPage> <TextRect <ID 10> <ShapeRect 20.0 mm 20.0 mm 160.0 mm 250.0 mm>>>
+<TextFlow <TFTag `A'>
+ <Notes
+  <FNote <ID 1> <Para <PgfTag `Footnote'> <ParaLine <String `The footnote text.'>>>>
+ >
+
+ <Para <PgfTag `Title'> <ParaLine <TextRectID 10>> <ParaLine <String `Sample Document'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Version '> <Variable <VariableName `Version'>> <String `, pages: '> <Variable <VariableName `Page Count'>>>>
+ <Para <PgfTag `Heading1'> <ParaLine <Marker <MType 9> <MText `11: Heading1: Introduction'> <MCurrPage `2'>> <Marker <MType 2> <MText `Introduction;Sample:first entry'> <MCurrPage `'>> <String `Introduction'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Plain text with '> <Font <FTag `Emphasis'> <FLocked No>> <String `italic'> <Font <FTag `'> <FLocked No>> <String `, '> <Font <FTag `Strong'> <FLocked No>> <String `bold'> <Font <FTag `'> <FLocked No>> <String `, '> <Font <FTag `Command'> <FLocked No>> <String `code_text()'> <Font <FTag `'> <FLocked No>> <String ` and E = mc'> <Font <FTag `'> <FPosition FSuperscript>> <String `2'> <Font <FTag `'> <FLocked No>> <String `.'>> <ParaLine <String ` A footnote'> <FNote 1> <String ` follows.'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Characters that are markup elsewhere: * _ \Q [x] | ~ ^ # {author} -- <<a\>\> a::b -\> 50 % & 100$'>> <ParaLine <Char EmDash> <String ` a dash, a forced'> <Char HardReturn> <String `line break and caf\x8e  \x9f ber, \xba  \xb0  3\xfb  and x\xb8 .'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `1. Not a list, because it is a body paragraph.'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Hidden text follows'> <Conditional <InCondition `Internal'>> <String ` SECRET'> <Unconditional> <String `.'>>>
+ <Para <PgfTag `Heading2'> <ParaLine <String `Lists'>>>
+ <Para <PgfTag `Bulleted'> <PgfNumString `\xa5 \t'> <ParaLine <String `First bullet'>>>
+ <Para <PgfTag `Bulleted2'> <PgfNumString `\xd0 \t'> <ParaLine <String `Nested bullet'>>>
+ <Para <PgfTag `Bulleted'> <PgfNumString `\xa5 \t'> <ParaLine <String `Second bullet'>>>
+ <Para <PgfTag `Indented'> <ParaLine <String `A paragraph that continues the second bullet.'>>>
+ <Para <PgfTag `Numbered1'> <PgfNumString `1.\t'> <ParaLine <String `Step one'>>>
+ <Para <PgfTag `Numbered'> <PgfNumString `2.\t'> <ParaLine <String `Step two'>>>
+ <Para <PgfTag `Numbered1'> <PgfNumString `1.\t'> <ParaLine <String `A new list, step one again'>>>
+ <Para <PgfTag `Code'> <ParaLine <String `for x in range(3):'>>>
+ <Para <PgfTag `Code'> <ParaLine <String `    print(x * 2)'>>>
+ <Para <PgfTag `Heading2'> <ParaLine <Marker <MType 9> <MText `12: Heading2: Tables and graphics'> <MCurrPage `3'>> <String `Tables and graphics'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `See '> <XRef <XRefName `Heading & Page'> <XRefSrcText `11: Heading1: Introduction'> <XRefSrcFile `'>> <String `\xd2 Introduction\xd3  on page 2'> <XRefEnd> <String ` and the table below.'> <ATbl 1>>>
+ <Para <PgfTag `Body'> <ParaLine <AFrame 5>>>
+ <Para <PgfTag `Figure'> <PgfNumString `Figure 1: '> <ParaLine <String `A small picture.'>>>
+ <Para <PgfTag `Body'> <ParaLine <AFrame 6>> <ParaLine <String `A graphic stored in the file is left out.'>>>
+ <Para <PgfTag `Heading2'> <ParaLine <String `More structures'>>>
+ <Para <PgfTag `Heading3'> <ParaLine <Marker <MType 9> <MText `13: Heading3: Lists with references'> <MCurrPage `3'>> <String `Lists with references'>>>
+ <Para <PgfTag `Numbered1'> <PgfNumString `1.\t'> <ParaLine <String `Read '> <XRef <XRefName `Heading & Page'> <XRefSrcText `12: Heading2: Tables and graphics'> <XRefSrcFile `'>> <String `\xd2 Tables and graphics\xd3  on page 3'> <XRefEnd> <String ` first.'>>>
+ <Para <PgfTag `Numbered'> <PgfNumString `2.\t'> <ParaLine <String `Then check the parts in this table:'> <ATbl 2>>>
+ <Para <PgfTag `Numbered'> <PgfNumString `3.\t'> <ParaLine <String `Finish with an inline '> <AFrame 7> <String ` picture.'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `A paragraph between two parts of a list.'>>>
+ <Para <PgfTag `Numbered'> <PgfNumString `4.\t'> <ParaLine <String `The list goes on with step four.'>>>
+ <Para <PgfTag `Subsection'> <ParaLine <String `Formatting and quotes'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Underlined '> <Font <FTag `'> <FUnderlining FSingle>> <String `words'> <Font <FTag `'> <FLocked No>> <String `, struck out '> <Font <FTag `'> <FStrike Yes>> <String `words'> <Font <FTag `'> <FLocked No>> <String `, H'> <Font <FTag `'> <FPosition FSubscript>> <String `2'> <Font <FTag `'> <FLocked No>> <String `O, a tab'> <Char Tab> <String `and a hard'> <Char HardSpace> <String `space.'>>>
+ <Para <PgfTag `Quote'> <ParaLine <String `A quoted paragraph.'>>>
+ <Para <PgfTag `Quote'> <ParaLine <String `Its second paragraph, see '> <XRef <XRefName `Heading & Page'> <XRefSrcText `13: Heading3: Lists with references'> <XRefSrcFile `'>> <String `\xd2 Lists with references\xd3  on page 3'> <XRefEnd> <String `.'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Two graphics in one frame:'> <AFrame 9>>>
+>

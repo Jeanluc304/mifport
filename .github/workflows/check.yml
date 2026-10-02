@@ -1,0 +1,59 @@
+# Runs the tests on every pull request and push to main. See CONTRIBUTING.md for running
+# the same checks locally.
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # both texts must be non-empty: in GitHub expressions '' counts as false in a && b || c
+    name: tests (Python ${{ matrix.python }}, ${{ matrix.tools && 'with pandoc and Asciidoctor' || 'Python only' }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12', '3.x']
+        tools: [true]
+        include:
+          - python: '3.x'
+            tools: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install pandoc, Asciidoctor and asciidoctor-pdf (Ubuntu packages)
+        if: matrix.tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc asciidoctor ruby-asciidoctor-pdf
+          pandoc --version | head -1
+          asciidoctor --version | head -1
+          asciidoctor-pdf --version | head -1
+
+      - name: Compile all Python files
+        run: python -m compileall -q mifdoc mif2md.py mif2adoc.py tests samples/sample
+
+      - name: The sample is reproducible
+        run: |
+          python -B samples/sample/make_sample.py
+          git diff --exit-code -- samples/sample
+
+      - name: Tests
+        run: python -B -m unittest discover -v tests 2>&1 | tee "$RUNNER_TEMP/tests.txt"; exit "${PIPESTATUS[0]}"
+        shell: bash
+
+      - name: The pandoc and Asciidoctor tests ran
+        if: matrix.tools
+        run: |
+          if grep -E "(PandocTest|AsciidoctorTest|StyleTest).*skipped" "$RUNNER_TEMP/tests.txt"; then
+            echo "pandoc, Asciidoctor or asciidoctor-pdf tests were skipped"; exit 1
+          fi

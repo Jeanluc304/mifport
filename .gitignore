@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+# Only the generated sample belongs in the repository
+samples/*
+!samples/sample/
+# output of converting the sample by hand
+samples/sample/images/
+samples/sample/sample.md
+samples/sample/sample.adoc
+samples/sample/*.pandoc.yaml
+samples/sample/*-theme.yml

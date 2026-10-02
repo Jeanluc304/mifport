@@ -1,0 +1,33 @@
+# Changelog
+
+All notable changes to this project are listed here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+First version.
+
+### Added
+
+- `mif2md`: FrameMaker MIF (7.0 to 2026) to Markdown, in two flavours: pandoc's Markdown
+  for conversion to PDF (grid tables, `\pageref` page numbers, YAML title and language)
+  and GitHub Flavored Markdown.
+- `mif2adoc`: MIF to AsciiDoc for Asciidoctor and asciidoctor-pdf.
+- Headings, paragraphs, bulleted and numbered lists (nested, with continuation
+  paragraphs), code blocks, quotes, bold, italic, monospaced, superscript, subscript,
+  underline and strikethrough.
+- Tables with titles, heading and footing rows, merged cells, and lists, graphics and
+  footnotes in cells.
+- Footnotes, cross-references with anchors, index entries (AsciiDoc), variables,
+  conditional text including Boolean condition expressions, tracked changes shown as
+  accepted, and imported graphics copied next to the output.
+- MIF 7.0 FrameRoman text decoded with Adobe's character set tables; `define` and
+  `include` macro statements; MIF files without pages.
+- Paragraph roles guessed from tag names, numbering and fonts, with a JSON mapping file
+  (`--map`) to correct them; `--list-tags` and `--dump` to see what the converter
+  understood.
+- `--style`: a pandoc defaults file or an asciidoctor-pdf theme with the page size,
+  margins, font sizes and spacing of the MIF file, as a starting point for the PDF.
+- Documentation for maintainers (`docs/`), a generated sample document with expected
+  outputs, and tests.

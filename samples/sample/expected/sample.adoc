@@ -1,0 +1,119 @@
+= Sample Document
+:lang: en-US
+
+Version 1.2, pages:
+
+[[introduction]]
+== Introduction
+
+indexterm:["Introduction"]indexterm:["Sample","first entry"]Plain text with __italic__, **bold**, ``pass:c[code_text()]`` and E = mc^2^. A footnotefootnote:[The footnote text.] follows.
+
+Characters that are markup elsewhere: pass:c[*] pass:c[_] pass:c[`] pass:c[[x\]] {vbar} pass:c[~] pass:c[^] pass:c[#] pass:c[{author}] pass:c[--] pass:c[<<a>>] pass:c[a::b] pass:c[->] 50 % & 100$— a dash, a forced +
+line break and café über, ½ × 3° and x³.
+
+{empty}1. Not a list, because it is a body paragraph.
+
+Hidden text follows.
+
+=== Lists
+
+* First bullet
+** Nested bullet
+* Second bullet
++
+A paragraph that continues the second bullet.
+
+//-
+
+. Step one
+. Step two
+
+//-
+
+. A new list, step one again
+
+----
+for x in range(3):
+    print(x * 2)
+----
+
+[[tables-and-graphics]]
+=== Tables and graphics
+
+See xref:introduction[“Introduction” on page 2] and the table below.
+
+.Sample table
+[cols="25,25,50",options="header"]
+|===
+| Name
+| Value
+| Notes
+
+2+| Spans two columns
+.2+a|
+Spans two rows.
+
+Second paragraph {vbar} with a bar.
+
+| alpha
+| 42
+|===
+
+image::images/dot.png[,pdfwidth=50%,scaledwidth=50%]
+
+Figure 1: A small picture.
+
+A graphic stored in the file is left out.
+
+=== More structures
+
+[[lists-with-references]]
+==== Lists with references
+
+. Read xref:tables-and-graphics[“Tables and graphics” on page 3] first.
+. Then check the parts in this table:
++
+.Parts
+[cols="36,64",options="header,footer"]
+|===
+2+| Parts and notes
+
+| Part
+| Notes
+
+a|
+. Open the lid
+. Close it again
+| Handle with carefootnote:[A note from a table cell.].
+
+a|
+image::images/dot.png[,pdfwidth=19%,scaledwidth=19%]
+a|
+* light
+* small
+
+| Total
+| 2 parts
+|===
+. Finish with an inline image:images/dot.png[,pdfwidth=4%,scaledwidth=4%] picture.
+
+A paragraph between two parts of a list.
+
+[start=4]
+. The list goes on with step four.
+
+===== Formatting and quotes
+
+Underlined [.underline]##words##, struck out [.line-through]##words##, H~2~O, a tab and a hard space.
+
+____
+A quoted paragraph.
+
+Its second paragraph, see xref:lists-with-references[“Lists with references” on page 3].
+____
+
+Two graphics in one frame:
+
+image::images/dot.png[,pdfwidth=50%,scaledwidth=50%]
+
+image::images/dot.png[,pdfwidth=10%,scaledwidth=10%]
