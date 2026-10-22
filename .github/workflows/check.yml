@@ -40,7 +40,7 @@ jobs:
           asciidoctor-pdf --version | head -1
 
       - name: Compile all Python files
-        run: python -m compileall -q mifdoc mif2md.py mif2adoc.py tests samples/sample
+        run: python -m compileall -q mifdoc mif2md.py mif2adoc.py mif2rtf.py tests samples/sample
 
       - name: The sample is reproducible
         run: |

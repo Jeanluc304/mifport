@@ -9,6 +9,7 @@ import os
 import re
 import unicodedata
 from collections import Counter
+from dataclasses import replace
 
 from . import model as m
 from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, length, lengths,
@@ -195,6 +196,9 @@ class Builder:
         self.heading_levels = self._heading_levels()
         self.used_ids = Counter()  # anchor ids handed out, to keep them unique
         self.anchors = self._xref_targets()
+        self.used_tags = {}        # paragraph tag -> resolved format of its first paragraph
+        self.used_ctags = set()    # character formats applied to text
+        self.tag_formats = {}      # paragraph tag -> ParaFormat of its style
 
     def warn(self, msg):
         if msg not in self._warned:
@@ -425,6 +429,7 @@ class Builder:
             if isinstance(b, m.Heading) and b.level == 0:  # a 'title' paragraph
                 if doc.title is None:
                     doc.title = b.inlines
+                    doc.title_tag = b.tag
                     continue
                 b.level = 1
             if isinstance(b, m.Heading):  # no jumps of more than one level
@@ -436,6 +441,14 @@ class Builder:
                     b.id = base if self.used_ids[base] == 1 else f'{base}-{self.used_ids[base]}'
             out.append(b)
         doc.blocks = out
+        # Styles are defined from the catalog format, so that a local override on the first
+        # paragraph of a tag does not end up in the style; tags missing from the catalog are
+        # defined from their first paragraph.
+        colors = self.formats.colors
+        doc.formats = {tag: para_format(self.formats.pgf_catalog.get(tag, props), colors)
+                       for tag, props in self.used_tags.items() if tag}
+        doc.char_formats = {t: char_format(self.formats.char_catalog[t], colors)
+                            for t in sorted(self.used_ctags) if t in self.formats.char_catalog}
         return doc
 
     def blocks(self, paras, top=False):
@@ -459,6 +472,7 @@ class Builder:
         role = self.role(props)
         if role == 'skip':
             return []
+        self.used_tags.setdefault(props['tag'], props)
         after = []
         inlines = self.inlines(para, props, after)
         anchors = [i.id for i in inlines if isinstance(i, m.Anchor)]
@@ -478,31 +492,45 @@ class Builder:
 
     def _entry(self, para, props, role, inlines, anchors, top):
         numstr = para.str('PgfNumString') or ''
+        local = self.local_format(props)
         if role in ('title', 'heading') or role.startswith('heading'):
             if not top:  # headings in table cells and footnotes stay paragraphs
-                return ('para', self._label(numstr, inlines, anchors, props), props)
+                return ('para', self._label(numstr, inlines, anchors, props, local), props)
             if role == 'title':
                 level = 0
             elif role == 'heading':
                 level = self.heading_levels.get(props['tag'], 1)
             else:
                 level = int(role[-1])
-            return ('block', m.Heading(level, _strip(inlines), anchors, props['tag']), None)
+            number = numstr.replace('\t', ' ').translate(PLAIN).strip()
+            return ('block', m.Heading(level, _strip(inlines), anchors, props['tag'],
+                                       number=number + ' ' if number else '', local=local), None)
         if role in ('bullet', 'numbered'):
             number = re.search(r'[0-9]+', numstr)
             _, restart = numbering(props.get('numformat'))
             item = dict(ordered=role == 'numbered', start=int(number.group()) if number else 1,
                         restart=bool(restart), inlines=[m.Anchor(a) for a in anchors] + _strip(inlines),
-                        tag=props['tag'])
+                        tag=props['tag'], local=local)
             return ('item', item, props)
         if role == 'code':
             return ('code', m.plain(inlines), props)
         if role == 'quote':
-            return ('quote', self._label(numstr, inlines, anchors, props), props)
-        return ('para', self._label(numstr, inlines, anchors, props), props)
+            return ('quote', self._label(numstr, inlines, anchors, props, local), props)
+        return ('para', self._label(numstr, inlines, anchors, props, local), props)
+
+    def local_format(self, props):
+        """The paragraph's own ParaFormat if it differs from its tag's (a local override in
+        FrameMaker), else None. The tag's format is the catalog's, or for tags missing from
+        the catalog that of the tag's first paragraph."""
+        tag = props['tag']
+        if tag not in self.tag_formats:
+            base = self.formats.pgf_catalog.get(tag, self.used_tags.get(tag, props))
+            self.tag_formats[tag] = para_format(base, self.formats.colors)
+        own = para_format(props, self.formats.colors)
+        return own if own != self.tag_formats[tag] else None
 
     @staticmethod
-    def _label(numstr, inlines, anchors, props):
+    def _label(numstr, inlines, anchors, props, local=None):
         """A paragraph with its autonumber text ('Figure 3: ') in front, or at the end if
         the format says so (PgfNumAtEnd)."""
         pre = [m.Anchor(a) for a in anchors]
@@ -512,7 +540,7 @@ class Builder:
             body = _strip(body + [m.Text(number)])
         elif numstr.strip():
             pre.append(m.Text(number))
-        return m.Paragraph(pre + body, props['tag'])
+        return m.Paragraph(pre + body, props['tag'], local)
 
     @staticmethod
     def _merge(entries):
@@ -559,14 +587,14 @@ class Builder:
                         stack.pop()
                         stack.append([self._new_list(data, target()), bullet, text])
                     else:
-                        lst.items.append([m.Paragraph(data['inlines'], data['tag'])])
+                        lst.items.append([m.Paragraph(data['inlines'], data['tag'], data['local'])])
                 else:
                     stack.append([self._new_list(data, target()), bullet, text])
                 continue
             if kind == 'block':
                 block = data
             elif kind == 'code':
-                block = m.CodeBlock(data, props['tag'])
+                block = m.CodeBlock(data, props['tag'], self.local_format(props))
             elif kind == 'quote':
                 block = m.Quote(data)
             else:
@@ -584,7 +612,8 @@ class Builder:
 
     @staticmethod
     def _new_list(item, parent):
-        lst = m.ListBlock(item['ordered'], [[m.Paragraph(item['inlines'], item['tag'])]], item['start'])
+        lst = m.ListBlock(item['ordered'], [[m.Paragraph(item['inlines'], item['tag'], item['local'])]],
+                          item['start'])
         parent.append(lst)
         return lst
 
@@ -623,21 +652,23 @@ class Builder:
                     continue
                 if hidden or banner:
                     continue
+                if ctag and n in ('String', 'Char', 'Variable'):
+                    self.used_ctags.add(ctag)
                 if n == 'String':
                     for i, part in enumerate(st.text.translate(PLAIN).split('\N{LINE SEPARATOR}')):
                         if i:
                             emit(m.LineBreak())
                         if part:
-                            emit(m.Text(part, style))
+                            emit(m.Text(part, style, ctag))
                 elif n == 'Char':
                     ch = CHARS.get(st.value, '')
                     if st.value not in CHARS:
                         self.warn(f'special character {st.value} left out')
-                    emit(m.LineBreak() if ch is None else m.Text(ch, style))
+                    emit(m.LineBreak() if ch is None else m.Text(ch, style, ctag))
                 elif n == 'Variable':
                     text = self.variable(st.str('VariableName', ''))
                     if text:
-                        emit(m.Text(text, style))
+                        emit(m.Text(text, style, ctag))
                 elif n == 'XRef':
                     if st.str('XRefSrcFile'):
                         xref = (None, [], '', '', '')
@@ -925,6 +956,59 @@ def font_style(props):
                        length(props.get('PgfSpBefore')), length(props.get('PgfSpAfter')))
 
 
+ALIGN = {'Left': 'left', 'Center': 'center', 'Right': 'right', 'LeftRight': 'justify'}
+UNDERLINE = {'FSingle': 'single', 'FNumeric': 'single', 'FDouble': 'double'}
+CASE = {'FUppercase': 'upper', 'FSmallCaps': 'small'}
+POSITION = {'FSuperscript': 'super', 'FSubscript': 'sub', 'FNormal': ''}
+PAGE_TOP = ('PageTop', 'LPageTop', 'RPageTop', 'ColumnTop')
+
+
+def _color(font, colors):
+    name = font.get('FColor')
+    return colors.get(name) if name else None
+
+
+def para_format(props, colors):
+    """The ParaFormat of a resolved paragraph format, for the RTF writer."""
+    font = props['font']
+    return m.ParaFormat(
+        family=font.get('FFamily', ''), size=length(font.get('FSize'), 12.0),
+        bold=is_bold(font), italic=is_italic(font),
+        underline=UNDERLINE.get(font.get('FUnderlining', ''), ''),
+        strike=font.get('FStrike') == 'Yes', caps=CASE.get(font.get('FCase', ''), ''),
+        color=_color(font, colors), align=ALIGN.get(props.get('PgfAlignment', ''), 'left'),
+        left=length(props.get('PgfLIndent')), first=length(props.get('PgfFIndent')),
+        right=length(props.get('PgfRIndent')), space_before=length(props.get('PgfSpBefore')),
+        space_after=length(props.get('PgfSpAfter')), leading=length(props.get('PgfLeading'), 2.0),
+        fixed_lines=props.get('PgfLineSpacing', 'Fixed') != 'Proportional',
+        keep_next=props.get('PgfWithNext') == 'Yes', page_break=props.get('PgfPlacement') in PAGE_TOP,
+        hyphenate=props.get('PgfHyphenate') != 'No', tabs=list(props.get('tabs', [])))
+
+
+def char_format(font, colors):
+    """The CharFormat of a character catalog format: only what it sets."""
+    cf = m.CharFormat()
+    if 'FFamily' in font:
+        cf.family = font['FFamily']
+    if 'FSize' in font:
+        cf.size = length(font['FSize'], 12.0)
+    if 'FWeight' in font or 'FBold' in font:
+        cf.bold = is_bold(font)
+    if 'FAngle' in font or 'FItalic' in font:
+        cf.italic = is_italic(font)
+    if 'FUnderlining' in font:
+        cf.underline = UNDERLINE.get(font['FUnderlining'], '')
+    if 'FStrike' in font:
+        cf.strike = font['FStrike'] == 'Yes'
+    if 'FCase' in font:
+        cf.caps = CASE.get(font['FCase'], '')
+    if 'FColor' in font:
+        cf.color = _color(font, colors)
+    if 'FPosition' in font:
+        cf.position = POSITION.get(font['FPosition'], '')
+    return cf
+
+
 def page_ref(children, target, page):
     """Replace the last occurrence of the page number in a cross-reference's text by a
     PageRef, so that writers that know page numbers (pandoc -> LaTeX) can use the real one."""
@@ -934,7 +1018,7 @@ def page_ref(children, target, page):
             hits = list(re.finditer(rf'(?<![0-9A-Za-z]){re.escape(page)}(?![0-9A-Za-z])', c.text))
             if hits:
                 a, b = hits[-1].span()
-                parts = [m.Text(c.text[:a], c.style), m.PageRef(target, page), m.Text(c.text[b:], c.style)]
+                parts = [replace(c, text=c.text[:a]), m.PageRef(target, page), replace(c, text=c.text[b:])]
                 return children[:n] + [p for p in parts if not isinstance(p, m.Text) or p.text] + children[n + 1:]
     return children
 
@@ -950,9 +1034,9 @@ def _strip(inlines):
     while inlines and blank(inlines[-1]):
         inlines.pop()
     if inlines and isinstance(inlines[0], m.Text):
-        inlines[0] = m.Text(inlines[0].text.lstrip(), inlines[0].style)
+        inlines[0] = replace(inlines[0], text=inlines[0].text.lstrip())
     if inlines and isinstance(inlines[-1], m.Text):
-        inlines[-1] = m.Text(inlines[-1].text.rstrip(), inlines[-1].style)
+        inlines[-1] = replace(inlines[-1], text=inlines[-1].text.rstrip())
     return inlines
 
 

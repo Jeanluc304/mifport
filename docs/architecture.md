@@ -11,14 +11,14 @@ statement tree
    │  Builder(root, ...).build() builder.py   all FrameMaker knowledge
    ▼
 document model                   model.py     headings, lists, tables, links ... (no MIF, no syntax)
-   │  place_images()             convert.py   copy graphics, set Image.href
-   │  MarkdownWriter / AsciiDocWriter         all output syntax
+   │  place_images()             convert.py   copy graphics, set Image.href (not for RTF)
+   │  MarkdownWriter / AsciiDocWriter / RtfWriter   all output syntax
    ▼
-output.md / output.adoc
+output.md / output.adoc / output.rtf
 ```
 
-`mif2md.py` and `mif2adoc.py` only parse their options and call `convert.run()` with
-the writer they need. Everything else is shared.
+`mif2md.py`, `mif2adoc.py` and `mif2rtf.py` only parse their options and call
+`convert.run()` with the writer they need. Everything else is shared.
 
 **The model is the contract.** The builder knows FrameMaker and nothing about Markdown or
 AsciiDoc; the writers know their syntax and nothing about MIF. When you fix a problem,
@@ -41,6 +41,7 @@ something. Then add a model type first (see [extending.md](extending.md)).
 | `builder.py` | MIF tree → model | `Builder.build` |
 | `markdown.py` | Model → Markdown, flavours `pandoc` and `gfm` | `MarkdownWriter.write` |
 | `asciidoc.py` | Model → AsciiDoc | `AsciiDocWriter.write` |
+| `rtf.py` | Model → RTF, FrameMaker's formats as Word styles | `RtfWriter.write`, `esc` |
 | `dump.py` | Model → readable tree (`--dump`) | `dump` |
 | `style.py` | `Document.style` → pandoc defaults file or asciidoctor-pdf theme (`--style`) | `pandoc_defaults`, `asciidoctor_theme` |
 | `convert.py` | Command line options, graphics copying, warnings | `arguments`, `run` |
@@ -51,10 +52,10 @@ Blocks:
 
 | Type | Fields | Notes |
 |---|---|---|
-| `Document` | `title` (inlines), `lang`, `blocks`, `style` | `title` comes from the first `title` paragraph; `style` (page size, margins, `FontStyle` per role) is only used by `style.py` |
-| `Heading` | `level` (1–6), `inlines`, `anchors`, `id` | `anchors` are ids of cross-reference targets in the heading; `id` is a unique id for the other headings |
-| `Paragraph` | `inlines` | |
-| `CodeBlock` | `text` | Consecutive code paragraphs with the same tag, joined with `\n` |
+| `Document` | `title` (inlines), `lang`, `blocks`, `style`, `title_tag`, `formats`, `char_formats` | `title` comes from the first `title` paragraph; `style` (page size, margins, `FontStyle` per role) is used by `style.py` and for the RTF page setup; `formats` (tag → `ParaFormat`) and `char_formats` (tag → `CharFormat`) only by the RTF writer |
+| `Heading` | `level` (1–6), `inlines`, `anchors`, `id`, `number`, `local` | `anchors` are ids of cross-reference targets in the heading; `id` is a unique id for the other headings; `number` is FrameMaker's autonumber, only written to RTF |
+| `Paragraph` | `inlines`, `local` | |
+| `CodeBlock` | `text`, `local` | Consecutive code paragraphs with the same tag, joined with `\n` |
 | `Quote` | `blocks` | |
 | `ListBlock` | `ordered`, `start`, `items` | Each item is a list of blocks: its paragraph, then nested lists, continuation paragraphs, tables, images |
 | `Table` | `widths` (pt), `rows`, `title`, `label`, `anchors`, `title_below` | `label` is FrameMaker's number ("Table 1: "), kept apart because pandoc and Asciidoctor number tables themselves |
@@ -63,13 +64,23 @@ Blocks:
 | `ImageBlock` | `image` | A graphic on its own line |
 
 `Heading`, `Paragraph` and `CodeBlock` also carry `tag`, the FrameMaker paragraph tag
-they came from. Writers ignore it; `--dump` shows it.
+they came from, and `local`, a `ParaFormat` set only when the paragraph overrides its
+tag's format in FrameMaker. The Markdown and AsciiDoc writers ignore both (`--dump` shows
+the tag); the RTF writer makes the tag the paragraph style and writes `local` as direct
+formatting.
+
+Formats (only for the RTF writer):
+
+| Type | Fields | Notes |
+|---|---|---|
+| `ParaFormat` | font (`family`, `size`, `bold`, `italic`, `underline`, `strike`, `caps`, `color`), `align`, `left`, `first`, `right`, `space_before`, `space_after`, `leading`, `fixed_lines`, `keep_next`, `page_break`, `hyphenate`, `tabs` | Lengths in points; `first` is FrameMaker's first-line indent from the column edge; colours are `(r, g, b)` |
+| `CharFormat` | the font fields and `position` | Only the properties the character format sets; the others are `None` |
 
 Inlines:
 
 | Type | Fields | Notes |
 |---|---|---|
-| `Text` | `text`, `style` | `style` is a frozenset of `BOLD`, `ITALIC`, `CODE`, `SUPER`, `SUB`, `UNDERLINE`, `STRIKE` |
+| `Text` | `text`, `style`, `ctag` | `style` is a frozenset of `BOLD`, `ITALIC`, `CODE`, `SUPER`, `SUB`, `UNDERLINE`, `STRIKE`; `ctag` is the FrameMaker character format (RTF writer only) |
 | `LineBreak` | | FrameMaker's forced return |
 | `Link` | `target`, `children`, `internal` | Internal targets are anchor ids |
 | `PageRef` | `target`, `text` | The page number inside a cross-reference; `text` is FrameMaker's number |
@@ -123,6 +134,12 @@ table on a character canvas, so that merged cells and multi-line cells line up.
 The AsciiDoc writer writes complex cells as `a|` cells with full block content, and
 moves index terms out of headings into the next paragraph.
 
-Escaping is the most fragile part of both writers. Its rules and the reasons for them
+The RTF writer has the same shape, with `pard()` for the control words that start a
+paragraph. It registers fonts, colours, styles and lists while it writes the body, and
+writes the font table, colour table, style sheet and list table last, in front of the
+body. Each paragraph names its style (`\sN`) and repeats the style's formatting, or its
+own (`local`), as control words.
+
+Escaping is the most fragile part of the Markdown and AsciiDoc writers. Its rules and the reasons for them
 are in [decisions.md](decisions.md); every change must keep the round-trip tests in
 `tests/test_mifdoc.py` passing.

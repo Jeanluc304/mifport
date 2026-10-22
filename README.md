@@ -1,10 +1,15 @@
-# mifport – export FrameMaker MIF to Markdown and AsciiDoc
+# mifport – export FrameMaker MIF to Markdown, AsciiDoc and RTF
 
-mifport consists of two command line tools that read FrameMaker documents in **MIF**
+mifport consists of three command line tools that read FrameMaker documents in **MIF**
 (Maker Interchange Format, version 7.0 up to 2026) and write the content as **Markdown**
-(`mif2md`) or **AsciiDoc** (`mif2adoc`): headings, paragraphs, lists, character
-formatting, tables (including merged cells), footnotes, cross-references, graphics,
-variables and conditional text.
+(`mif2md`), **AsciiDoc** (`mif2adoc`) or **RTF** (`mif2rtf`): headings, paragraphs,
+lists, character formatting, tables (including merged cells), footnotes,
+cross-references, graphics, variables and conditional text.
+
+The RTF output opens in Word and LibreOffice Writer and keeps FrameMaker's formatting:
+every paragraph and character format becomes a style of the same name, with its fonts,
+sizes, colours, indents, spacing and tab stops (see
+[RTF for Word and LibreOffice Writer](#rtf-for-word-and-libreoffice-writer)).
 
 Markdown and AsciiDoc describe structure, not layout. Page layout, fonts, colours, master
 pages, headers and footers are not converted into the text; `--style` writes the page
@@ -50,6 +55,7 @@ To go further you may want:
 
 | For | Program |
 |---|---|
+| Opening the RTF | Word, LibreOffice Writer or another word processor that reads RTF |
 | Markdown → PDF | [pandoc](https://pandoc.org) and a LaTeX installation |
 | SVG graphics in pandoc's PDF | `rsvg-convert` (Debian/Ubuntu package `librsvg2-bin`) |
 | AsciiDoc → HTML or PDF | [Asciidoctor](https://asciidoctor.org), `asciidoctor-pdf` |
@@ -59,10 +65,11 @@ To go further you may want:
 ```
 python3 mif2md.py   input.mif [output.md]   [--flavor pandoc|gfm]
 python3 mif2adoc.py input.mif [output.adoc]
+python3 mif2rtf.py  input.mif [output.rtf]
 ```
 
-The output name defaults to the input name with `.md` or `.adoc`. Both tools print one
-`WARNING:` line for every feature they had to leave out or approximate, then `wrote
+The output name defaults to the input name with `.md`, `.adoc` or `.rtf`. The tools print
+one `WARNING:` line for every feature they had to leave out or approximate, then `wrote
 output.md`.
 
 | Option | Meaning |
@@ -73,8 +80,8 @@ output.md`.
 | `--list-tags` | List the paragraph tags in the document with the role each one gets, then stop |
 | `--dump` | Print the document model – what the converter understood – then stop (see [docs/troubleshooting.md](docs/troubleshooting.md)) |
 | `--style` | Also write a style file with the page size, margins and formats of the MIF file: a pandoc defaults file (`mif2md`, pandoc flavour) or an asciidoctor-pdf theme (`mif2adoc`); see [docs/styling.md](docs/styling.md) |
-| `--image-dir DIR` | Folder for copied graphics, relative to the output file (default `images`) |
-| `--no-copy-images` | Link graphics where they are instead of copying them |
+| `--image-dir DIR` | Folder for copied graphics, relative to the output file (default `images`); not for RTF, which embeds its graphics |
+| `--no-copy-images` | Link graphics where they are instead of copying them (not for RTF) |
 | `--version` | Print the version |
 
 ### Markdown to PDF with pandoc
@@ -123,6 +130,42 @@ AsciiDoc can hold almost everything: merged cells (`2+|`, `.2+|`), cells with li
 several paragraphs (`a|`), footnotes, cross-references (`xref:`), index entries
 (`indexterm:[]`) and image widths (`pdfwidth`). Words with characters that AsciiDoc would
 read as markup are written as `pass:c[...]`, so the text comes out exactly as it was.
+
+### RTF for Word and LibreOffice Writer
+
+```
+python3 mif2rtf.py manual.mif           # writes manual.rtf
+```
+
+Open the file in Word or LibreOffice Writer and save it in their own format (`.docx`,
+`.odt`). Unlike Markdown and AsciiDoc, RTF keeps FrameMaker's formats, while the
+structure is real Word structure:
+
+- **Paragraph formats become paragraph styles** of the same name (`Body`, `Heading1`,
+  `Bulleted` …), defined from FrameMaker's paragraph catalog: font, size, bold, italic,
+  underline, capitals, colour, alignment, indents, space above and below, line spacing,
+  keep with next, page break before, hyphenation and tab stops (with leaders). A
+  paragraph that overrides its format in FrameMaker (a local override) keeps its own
+  values as direct formatting; the style stays as in the catalog.
+- **Character formats become character styles** (`Emphasis`, `Command` …), applied to
+  the text that uses them.
+- **Headings** get an outline level, so the navigation pane and an automatic table of
+  contents work; FrameMaker's heading numbers ("2.1 ") are kept as text.
+- **Lists** are Word lists, nested as in FrameMaker, at FrameMaker's indents; numbered
+  lists start where FrameMaker's start. Numbers are written as `1.` and bullets as `•`,
+  whatever FrameMaker's own number format was.
+- **Tables** with column widths, repeating heading rows, merged cells and simple lines
+  around every cell; **footnotes** as Word footnotes; **cross-references** as links with
+  the page number as a `PAGEREF` field, which Word and Writer update; **index markers**
+  as `XE` fields, so that Word can build the index (Writer imports them, but reads the
+  whole entry as the index key).
+- **Graphics** in PNG or JPEG are embedded in the RTF at their FrameMaker width; other
+  formats become a placeholder text with a warning (convert them to PNG first).
+- **Page size and margins** come from the body pages.
+
+Not in the RTF: headers and footers (master pages), several text columns, FrameMaker's
+table rulings and shading, drawing objects, and FrameMaker's exact line and page breaks
+– Word and Writer lay out the text themselves.
 
 ## Paragraph roles
 
@@ -191,6 +234,9 @@ position) relative to the paragraph's font.
 
 ## What is converted
 
+The table shows the Markdown and AsciiDoc output; for RTF see
+[RTF for Word and LibreOffice Writer](#rtf-for-word-and-libreoffice-writer).
+
 | FrameMaker | Markdown (pandoc / gfm) | AsciiDoc |
 |---|---|---|
 | Text flows on body pages | Document body, in page order | same |
@@ -252,7 +298,7 @@ python3 -m unittest discover tests
 
 The test document `samples/sample/sample.mif` (and its MIF 7 version) is written by
 `samples/sample/make_sample.py`. The tests check the document model, compare the output
-of both tools with `samples/sample/expected/`, and check that the MIF 7 and the MIF 2015
+of all three tools with `samples/sample/expected/`, and check that the MIF 7 and the MIF 2015
 file give the same output. If pandoc or Asciidoctor is installed, they also check that
 escaped text comes back unchanged and that tables, footnotes and links are recognised.
 After an intended change of the output, rewrite the expected files with
@@ -266,7 +312,8 @@ reproduces the committed sample exactly.
 ## Files
 
 ```
-mif2md.py, mif2adoc.py   command line entry points
+mif2md.py, mif2adoc.py,
+mif2rtf.py               command line entry points
 mapping.example.json     example of a tag mapping file (--map)
 mifdoc/
   mif.py        MIF file -> tree of statements; string escapes, FrameRoman
@@ -276,6 +323,7 @@ mifdoc/
   builder.py    MIF tree -> document model
   markdown.py   document model -> Markdown (pandoc and gfm)
   asciidoc.py   document model -> AsciiDoc
+  rtf.py        document model -> RTF, with FrameMaker's formats as styles
   convert.py    shared command line handling, graphics copying
   dump.py       the document model as a readable tree (--dump)
   style.py      style files for pandoc and asciidoctor-pdf (--style)
