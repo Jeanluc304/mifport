@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-22
+
 ### Added
 
 - `mif2rtf`: MIF to RTF for Word and LibreOffice Writer. FrameMaker's paragraph and
@@ -79,6 +81,7 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Jeanluc304/mifport/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Jeanluc304/mifport/releases/tag/v0.1.0

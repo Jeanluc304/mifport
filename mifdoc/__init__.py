@@ -1,2 +1,2 @@
-"""Convert FrameMaker MIF documents to Markdown and AsciiDoc."""
-__version__ = '0.2.0'
+"""Convert FrameMaker MIF documents to Markdown, AsciiDoc and RTF."""
+__version__ = '0.3.0'
