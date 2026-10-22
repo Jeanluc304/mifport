@@ -10,17 +10,29 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run still going for the old one; runs on main
+# always finish.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   tests:
     # both texts must be non-empty: in GitHub expressions '' counts as false in a && b || c
     name: tests (Python ${{ matrix.python }}, ${{ matrix.tools && 'with pandoc and Asciidoctor' || 'Python only' }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
+      # pandoc and Asciidoctor are installed in one job only: their tests check the output
+      # files, which are the same on every Python version (the expected-output tests run
+      # in every job), and downloading them is the slow part of a run
       matrix:
-        python: ['3.9', '3.12', '3.x']
-        tools: [true]
         include:
+          - python: '3.9'
+            tools: false
+          - python: '3.12'
+            tools: true
           - python: '3.x'
             tools: false
     steps:
@@ -30,11 +42,35 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      # The Ubuntu mirrors are sometimes very slow (31.8 MB took 9.5 minutes once), so the
+      # downloaded packages are cached. The key names the runner image: a new image, which
+      # may want newer package versions, starts from the newest earlier cache and saves a
+      # new one.
+      - name: Runner image
+        if: matrix.tools
+        id: image
+        run: |
+          echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+          echo "name=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore downloaded Ubuntu packages
+        if: matrix.tools
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-${{ steps.image.outputs.name }}-pandoc-asciidoctor
+          restore-keys: apt-${{ steps.image.outputs.os }}-
+
       - name: Install pandoc, Asciidoctor and asciidoctor-pdf (Ubuntu packages)
         if: matrix.tools
         run: |
+          mkdir -p ~/apt-archives/partial
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends pandoc asciidoctor ruby-asciidoctor-pdf
+          sudo apt-get install -y --no-install-recommends \
+            -o Dir::Cache::Archives="$HOME/apt-archives" -o APT::Keep-Downloaded-Packages=true \
+            pandoc asciidoctor ruby-asciidoctor-pdf
+          sudo chown -R "$USER" ~/apt-archives
+          ls ~/apt-archives/*.deb | wc -l
           pandoc --version | head -1
           asciidoctor --version | head -1
           asciidoctor-pdf --version | head -1
