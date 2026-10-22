@@ -44,3 +44,49 @@ the `images/` folder before you publish the output.
 
 The converters never run code contained in a MIF file, do not use the network, and do
 not start other programs.
+
+## No network access, and how to check it
+
+The converters use only Python's standard library modules for text, files and the command
+line. They import no network module (`socket`, `urllib`, `http.client`, `ssl`), start no
+other programs, and send nothing anywhere – neither the converted text nor anything
+else. You do not have to take this on trust:
+
+1. **Read the code.** There are no dependencies; this finds every place that could reach
+   the network or start a program. The only hits are two lines in `mifdoc/builder.py`
+   that handle a graphic's web address: it is written into the output as a link, not
+   downloaded.
+
+   ```
+   grep -nE "socket|urllib|http|ssl|requests|subprocess|os\.system|popen|exec\(|eval\(|importlib|ctypes" mif2*.py mifdoc/*.py
+   ```
+
+2. **Watch a conversion.** On Linux, `strace` lists every network system call of a
+   process and its children; for the converters the list is empty:
+
+   ```
+   strace -f -e trace=network python3 mif2rtf.py input.mif output.rtf
+   ```
+
+3. **Convert without a network.** `unshare -rn` (Linux, no root needed) runs the
+   converter in a network namespace of its own, without any network device. The
+   conversion works the same and the output is identical. For confidential documents
+   this is the simplest guarantee, because it holds whatever the code does:
+
+   ```
+   unshare -rn python3 mif2rtf.py input.mif output.rtf
+   ```
+
+   On other systems, a container without network (`docker run --network none ...`) does
+   the same.
+
+The tests check this on every pull request: `NoNetworkTest` in `tests/test_mifdoc.py`
+runs every converter with a Python audit hook that stops the process as soon as it tries
+to open a socket, resolve a host name, use HTTP, FTP or mail, or start another program.
+
+What happens **after** the conversion is outside the converters: if a MIF file refers to
+a graphic by web address, the Markdown or AsciiDoc output contains that address, and a
+viewer (GitHub, pandoc with `--embed-resources`, Asciidoctor with `allow-uri-read`) may
+load it. Word and LibreOffice Writer open links in the RTF only when you click them.
+Check the version you run: use a release tag and look at what changed since the last
+one you checked (`git diff v0.2.0..main`).
