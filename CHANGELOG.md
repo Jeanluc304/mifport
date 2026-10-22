@@ -24,6 +24,8 @@ All notable changes to this project are listed here. The format follows
   Page variables in the text become fields too.
 - `mif2rtf`: lists keep FrameMaker's number format: counter style, the text around the
   number, the bullet character and the number's character format.
+- A test (`NoNetworkTest`) that fails if a converter opens a network connection or starts
+  another program, and a section in `SECURITY.md` on how to check this yourself.
 
 ### Fixed
 

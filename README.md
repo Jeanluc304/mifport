@@ -315,7 +315,8 @@ The test document `samples/sample/sample.mif` (and its MIF 7 version) is written
 of all three tools with `samples/sample/expected/`, and check that the MIF 7 and the MIF 2015
 file give the same output. If pandoc or Asciidoctor is installed, they also check that
 escaped text comes back unchanged and that tables, footnotes and links are recognised.
-After an intended change of the output, rewrite the expected files with
+`NoNetworkTest` checks that no converter uses the network or starts another program
+(see [SECURITY.md](SECURITY.md#no-network-access-and-how-to-check-it)). After an intended change of the output, rewrite the expected files with
 `UPDATE_EXPECTED=1 python3 -m unittest discover tests`.
 
 GitHub Actions runs the tests for every pull request and push to `main`

@@ -1243,5 +1243,56 @@ class RtfTest(unittest.TestCase):
         self.assertEqual(len(warnings), 2)
 
 
+# Runs a script with an audit hook that ends the process as soon as it tries to use the
+# network or start another program (Python reports these attempts as audit events).
+NO_NETWORK = r"""
+import os, runpy, sys
+BLOCKED = ('socket.', 'urllib.Request', 'http.client.', 'ftplib.', 'smtplib.', 'poplib.',
+           'imaplib.', 'nntplib.', 'telnetlib.', 'webbrowser.', 'subprocess.Popen',
+           'os.system', 'os.exec', 'os.posix_spawn', 'os.spawn', 'os.fork')
+
+def hook(event, args):
+    if event.startswith(BLOCKED):
+        os.write(2, ('BLOCKED ' + event + '\n').encode())
+        os._exit(97)
+
+sys.addaudithook(hook)
+script = sys.argv[1]
+sys.argv = sys.argv[1:]
+sys.path.insert(0, os.path.dirname(os.path.abspath(script)))
+runpy.run_path(script, run_name='__main__')
+"""
+
+
+class NoNetworkTest(unittest.TestCase):
+    """The converters never use the network and never start other programs."""
+
+    def run_guarded(self, script, *args):
+        return subprocess.run([sys.executable, '-c', NO_NETWORK, script] + list(args),
+                              capture_output=True, text=True)
+
+    def test_the_guard_catches_a_connection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = os.path.join(tmp, 'probe.py')
+            with open(probe, 'w') as f:
+                f.write("import socket\nsocket.create_connection(('192.0.2.1', 80), timeout=1)\n")
+            p = self.run_guarded(probe)
+        self.assertEqual(p.returncode, 97)
+        self.assertIn('BLOCKED socket.', p.stderr)
+
+    def test_converters_stay_offline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, (script, args) in OUTPUTS.items():
+                out = os.path.join(tmp, name)
+                p = self.run_guarded(os.path.join(ROOT, script),
+                                     os.path.join(SAMPLE, 'sample.mif'), out, *args)
+                self.assertEqual(p.returncode, 0, f'{script} {args}: {p.stderr}')
+                self.assertNotIn('BLOCKED', p.stderr)
+                self.assertTrue(os.path.getsize(out) > 0)
+            for option in ('--list-tags', '--dump', '--version'):
+                p = self.run_guarded(os.path.join(ROOT, 'mif2rtf.py'), os.path.join(SAMPLE, 'sample.mif'), option)
+                self.assertEqual(p.returncode, 0, f'{option}: {p.stderr}')
+
+
 if __name__ == '__main__':
     unittest.main()
