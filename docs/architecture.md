@@ -57,7 +57,7 @@ Blocks:
 | `Paragraph` | `inlines`, `local` | |
 | `CodeBlock` | `text`, `local` | Consecutive code paragraphs with the same tag, joined with `\n` |
 | `Quote` | `blocks` | |
-| `ListBlock` | `ordered`, `start`, `items` | Each item is a list of blocks: its paragraph, then nested lists, continuation paragraphs, tables, images |
+| `ListBlock` | `ordered`, `start`, `items`, `marker` | Each item is a list of blocks: its paragraph, then nested lists, continuation paragraphs, tables, images; `marker` (a `ListMarker`) is FrameMaker's number format, used only by the RTF writer |
 | `Table` | `widths` (pt), `rows`, `title`, `label`, `anchors`, `title_below` | `label` is FrameMaker's number ("Table 1: "), kept apart because pandoc and Asciidoctor number tables themselves |
 | `Row` | `kind` (`head`/`body`/`foot`), `cells` | One entry per column; `None` where a merged cell covers the column |
 | `Cell` | `blocks`, `colspan`, `rowspan` | |
@@ -75,6 +75,8 @@ Formats (only for the RTF writer):
 |---|---|---|
 | `ParaFormat` | font (`family`, `size`, `bold`, `italic`, `underline`, `strike`, `caps`, `color`), `align`, `left`, `first`, `right`, `space_before`, `space_after`, `leading`, `fixed_lines`, `keep_next`, `page_break`, `hyphenate`, `tabs` | Lengths in points; `first` is FrameMaker's first-line indent from the column edge; colours are `(r, g, b)` |
 | `CharFormat` | the font fields and `position` | Only the properties the character format sets; the others are `None` |
+| `ListMarker` | `style`, `prefix`, `suffix`, `bullet`, `tab`, `font` | `style` is `decimal`, `lower-alpha`, `upper-alpha`, `lower-roman`, `upper-roman` or `bullet`; `font` the number's `CharFormat` |
+| `PageLayout` | `header`, `footer`, `header_left`, `footer_left`, `header_first`, `footer_first`, `first_page_own`, `header_top`, `footer_bottom`, `start`, `number_style` | `Document.pages`, built only for RTF (`Builder(..., pages=True)`); headers and footers are lists of blocks |
 
 Inlines:
 
@@ -88,6 +90,7 @@ Inlines:
 | `FootnoteRef` | `blocks` | The footnote's content, inline where it is referenced |
 | `IndexTerm` | `levels` | `['primary', 'secondary']` |
 | `Image` | `source`, `name`, `width_pt`, `width_pct`, `alt`, `href` | `href` is set by `convert.place_images` |
+| `PageVariable` | `name`, `parts` | A variable that needs pages (page numbers, running headers); `parts` are `Text` and `FieldCode` (`page`, `pages`, `styleref` with the tag in `arg`). The Markdown and AsciiDoc writers remove them first (`model.drop_page_variables`) and warn |
 
 ## The builder in order
 
@@ -113,7 +116,9 @@ decisions need the whole document:
 - `_merge()` joins consecutive code and quote paragraphs;
 - `_group()` nests list items by indent and attaches continuation paragraphs;
 - `build()` finally takes the title out and smooths heading levels (no jumps of more
-  than one level).
+  than one level); for RTF it then reads the master pages (`page_layout()`: the text
+  frames above and below the body frame of the right, left and first-page master pages
+  become headers and footers, built with `blocks()` like table cells).
 
 `inlines()` walks the `ParaLine` statements of one paragraph and keeps three pieces of
 state: the current character style (changed by `Font`), whether text is hidden (changed
@@ -138,7 +143,9 @@ The RTF writer has the same shape, with `pard()` for the control words that star
 paragraph. It registers fonts, colours, styles and lists while it writes the body, and
 writes the font table, colour table, style sheet and list table last, in front of the
 body. Each paragraph names its style (`\sN`) and repeats the style's formatting, or its
-own (`local`), as control words.
+own (`local`), as control words. `section()` writes the page numbering and the header and
+footer groups; `list_level()` turns a `ListMarker` into a `\listlevel`; `field_code()`
+turns page numbers and running headers into `PAGE`, `NUMPAGES` and `STYLEREF` fields.
 
 Escaping is the most fragile part of the Markdown and AsciiDoc writers. Its rules and the reasons for them
 are in [decisions.md](decisions.md); every change must keep the round-trip tests in

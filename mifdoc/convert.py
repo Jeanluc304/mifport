@@ -65,7 +65,7 @@ def run(args, ext, make_writer, style_file=None):
         mapping = Mapping(args.map)
     except (OSError, ValueError) as e:
         sys.exit(f'error: {e}')
-    builder = Builder(root, args.input, mapping, warn)
+    builder = Builder(root, args.input, mapping, warn, pages=ext == '.rtf')
     if args.list_tags:
         list_tags(builder)
         return

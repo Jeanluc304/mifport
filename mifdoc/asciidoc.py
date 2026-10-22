@@ -26,6 +26,7 @@ class AsciiDocWriter:
         self.warn = warn
 
     def write(self, doc):
+        doc = m.drop_page_variables(doc, self.warn)
         self.pending = ''  # index terms from a heading, for the next paragraph
         self.in_cell = 0   # > 0 while table cells are written
         body = self.blocks(doc.blocks)

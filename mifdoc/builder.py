@@ -13,7 +13,7 @@ from dataclasses import replace
 
 from . import model as m
 from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, length, lengths,
-                      numbering)
+                      COUNTER_BLOCK, SERIES, list_marker, numbering, symbol_bullet)
 from .mif import Node
 from .roles import Mapping, is_sub, tag_number, tag_role
 
@@ -25,6 +25,9 @@ CHARS = {
     'Bullet': '\N{BULLET}', 'Dagger': '\N{DAGGER}', 'DoubleDagger': '\N{DOUBLE DAGGER}',
     'ThinSpace': ' ', 'EnSpace': ' ', 'EmSpace': ' ', 'NumberSpace': ' ', 'HardReturn': None,
 }
+# Variable building blocks that need FrameMaker's pages
+PAGE_BLOCKS = re.compile(r'<\$(cur|last)pagenum|<\$pagenum|<\$para(text|num|tag)|<\$marker|'
+                         r'<\$(tbl|table)')
 # Typographic spaces and hyphens -> plain ones (LaTeX's pdflatex cannot print them). MIF 8
 # and newer may write special characters as characters instead of Char statements; the
 # soft hyphen is dropped like <Char SoftHyphen>/<Char DiscHyphen>.
@@ -163,8 +166,11 @@ def di_path(di):
 
 
 class Builder:
-    def __init__(self, root, mif_path, mapping=None, warn=print):
+    def __init__(self, root, mif_path, mapping=None, warn=print, pages=False):
+        """`pages`: also read headers and footers from the master pages (for outputs with
+        pages, RTF)."""
         self.root = root
+        self.read_pages = pages
         self.mif_path = mif_path
         self.mif_dir = os.path.dirname(os.path.abspath(mif_path))
         self.map = mapping or Mapping()
@@ -199,6 +205,7 @@ class Builder:
         self.used_tags = {}        # paragraph tag -> resolved format of its first paragraph
         self.used_ctags = set()    # character formats applied to text
         self.tag_formats = {}      # paragraph tag -> ParaFormat of its style
+        self.in_master = False     # building headers and footers of master pages
 
     def warn(self, msg):
         if msg not in self._warned:
@@ -298,6 +305,90 @@ class Builder:
             name = doc.val('DLanguage') if doc is not None else None
         return LANGUAGES.get(name or '', '')
 
+    def page_layout(self):
+        """Headers and footers from the master pages, and the page numbering.
+
+        On a master page, the text frames above the body frame hold the header, those
+        below it the footer. One-sided documents use the right master page for every page
+        (as FrameMaker does); two-sided ones also the left one. When the first body page
+        uses another master page (a title page), it gets that page's header and footer.
+        """
+        doc = self.root.get('Document')
+        pl = m.PageLayout()
+        if doc is None:
+            return pl
+        pl.start = int(float(doc.val('DStartPage') or 1) or 1)
+        pl.number_style = PAGE_NUM_STYLE.get(doc.val('DPageNumStyle') or '', 'decimal')
+        page_height = (lengths(doc.val('DPageSize')) + [0, 0])[1]
+        masters = {}
+        for page in self.root.all('Page'):
+            kind = page.val('PageType')
+            name = {'RightMasterPage': 'Right', 'LeftMasterPage': 'Left'}.get(kind)
+            if kind == 'OtherMasterPage':
+                name = page.str('PageTag', '')
+            if name:
+                masters.setdefault(name, page)
+        flow_of = {}
+        for flow in self.root.find('TextFlow'):
+            for r in flow.find('TextRectID'):
+                flow_of.setdefault(r.value, flow)
+
+        self.in_master = True
+        try:
+            right = self._master_regions(masters.get('Right'), flow_of, page_height)
+            left = (self._master_regions(masters.get('Left'), flow_of, page_height)
+                    if doc.val('DTwoSides') == 'Yes' else None)
+            body_pages = [p for p in self.root.all('Page') if p.val('PageType') == 'BodyPage']
+            backgrounds = [p.str('PageBackground') or 'Default' for p in body_pages]
+            if backgrounds and backgrounds[0] != 'Default':
+                pl.first_page_own = True
+                first = self._master_regions(masters.get(backgrounds[0]), flow_of, page_height)
+                pl.header_first, pl.footer_first = first[0], first[1]
+            others = sorted({b for b in backgrounds[1:] if b != 'Default'})
+            if others:
+                self.warn('pages with other master pages (%s) get the headers and footers of '
+                          'the left and right master pages' % ', '.join(others))
+        finally:
+            self.in_master = False
+        pl.header, pl.footer, pl.header_top, pl.footer_bottom = right
+        if left:
+            pl.header_left, pl.footer_left = left[0], left[1]
+        return pl
+
+    def _master_regions(self, page, flow_of, page_height):
+        """(header blocks, footer blocks, header top, footer distance from the bottom) of
+        a master page; blocks are None where the page has no text there."""
+        if page is None:
+            return None, None, 0.0, 0.0
+        frames = []
+        for r in page.all('TextRect'):
+            rect = lengths(r.val('ShapeRect'))
+            flow = flow_of.get(r.val('ID'))
+            if len(rect) == 4 and flow is not None:
+                frames.append((rect, flow))
+        if not frames:
+            return None, None, 0.0, 0.0
+        # the body frame: the one whose flow continues on body pages, else the largest
+        body = [f for f in frames if f[1].val('TFAutoConnect') == 'Yes'] or frames
+        bx, by, bw, bh = max(body, key=lambda f: f[0][2] * f[0][3])[0]
+        heads, foots = [], []
+        for (x, y, w, h), flow in frames:
+            if y + h <= by + 1:
+                heads.append(((y, x), flow, y))
+            elif y >= by + bh - 1:
+                foots.append(((y, x), flow, page_height - y - h if page_height else 0.0))
+
+        def blocks(items):
+            out, seen = [], set()
+            for _, flow, _ in sorted(items, key=lambda i: i[0]):
+                if id(flow) not in seen:
+                    seen.add(id(flow))
+                    out += self.blocks(flow.all('Para'))
+            return out or None
+        top = min((i[2] for i in heads), default=0.0)
+        bottom = min((i[2] for i in foots), default=0.0)
+        return blocks(heads), blocks(foots), top, bottom
+
     def style(self):
         """Page size, margins and the formats used most for each role."""
         st = m.Style()
@@ -353,12 +444,24 @@ class Builder:
         r = tag_role(tag)
         if r:
             return r
-        kind, _ = numbering(props.get('numformat') if props.get('PgfAutoNum') == 'Yes' else None)
+        kind, _ = numbering(self.shown_numformat(props) if props.get('PgfAutoNum') == 'Yes' else None)
         if kind:
             return 'bullet' if kind == 'bullet' else 'numbered'
         if is_mono(props['font']):
             return 'code'
         return 'paragraph'
+
+    def shown_numformat(self, props):
+        """The autonumber format as it looks: a bullet typed in a symbol font ('l' in Zapf
+        Dingbats) becomes the symbol it shows, so that it is recognised as a bullet."""
+        fmt = props.get('numformat') or ''
+        if not fmt or COUNTER_BLOCK.search(fmt):
+            return fmt
+        ctag = props.get('PgfNumberFont') or ''
+        family = self.formats.char_catalog.get(ctag, {}).get('FFamily') or props['font'].get('FFamily', '')
+        series = SERIES.match(fmt)
+        cut = series.end() if series else 0
+        return fmt[:cut] + symbol_bullet(fmt[cut:], family)
 
     def _heading_levels(self):
         """Heading level for every tag with the role 'heading'.
@@ -441,6 +544,8 @@ class Builder:
                     b.id = base if self.used_ids[base] == 1 else f'{base}-{self.used_ids[base]}'
             out.append(b)
         doc.blocks = out
+        if self.read_pages:  # after the body, so that body formats come first
+            doc.pages = self.page_layout()
         # Styles are defined from the catalog format, so that a local override on the first
         # paragraph of a tag does not end up in the style; tags missing from the catalog are
         # defined from their first paragraph.
@@ -477,8 +582,8 @@ class Builder:
         inlines = self.inlines(para, props, after)
         anchors = [i.id for i in inlines if isinstance(i, m.Anchor)]
         inlines = [i for i in inlines if not isinstance(i, m.Anchor)]
-        empty = not m.plain(inlines).strip() and not any(
-            isinstance(i, (m.Image, m.FootnoteRef)) for i in inlines)
+        keep = (m.Image, m.FootnoteRef, m.PageVariable) if self.in_master else (m.Image, m.FootnoteRef)
+        empty = not m.plain(inlines).strip() and not any(isinstance(i, keep) for i in inlines)
         out = []
         if empty:
             for b in after:  # anchors of an empty paragraph go to the table below it
@@ -510,7 +615,7 @@ class Builder:
             _, restart = numbering(props.get('numformat'))
             item = dict(ordered=role == 'numbered', start=int(number.group()) if number else 1,
                         restart=bool(restart), inlines=[m.Anchor(a) for a in anchors] + _strip(inlines),
-                        tag=props['tag'], local=local)
+                        tag=props['tag'], local=local, marker=self.list_marker_of(props))
             return ('item', item, props)
         if role == 'code':
             return ('code', m.plain(inlines), props)
@@ -528,6 +633,22 @@ class Builder:
             self.tag_formats[tag] = para_format(base, self.formats.colors)
         own = para_format(props, self.formats.colors)
         return own if own != self.tag_formats[tag] else None
+
+    def list_marker_of(self, props):
+        """The ListMarker of a list paragraph's format: FrameMaker's number style, the text
+        around the number, the bullet, and the number's character format."""
+        style, prefix, suffix, bullet, tab = list_marker(props.get('numformat'))
+        ctag = props.get('PgfNumberFont') or ''
+        font = char_format(self.formats.char_catalog[ctag], self.formats.colors) \
+            if ctag in self.formats.char_catalog else None
+        family = (font.family if font and font.family else '') or props['font'].get('FFamily', '')
+        if style == 'bullet':
+            shown = symbol_bullet(bullet, family)
+            if shown != bullet and font:   # now a Unicode symbol: the symbol font must go
+                font.family = None
+            bullet = shown
+        return m.ListMarker(style, prefix.translate(PLAIN), suffix.translate(PLAIN),
+                            bullet.translate(PLAIN), tab, font)
 
     @staticmethod
     def _label(numstr, inlines, anchors, props, local=None):
@@ -613,7 +734,7 @@ class Builder:
     @staticmethod
     def _new_list(item, parent):
         lst = m.ListBlock(item['ordered'], [[m.Paragraph(item['inlines'], item['tag'], item['local'])]],
-                          item['start'])
+                          item['start'], item['marker'])
         parent.append(lst)
         return lst
 
@@ -666,9 +787,14 @@ class Builder:
                         self.warn(f'special character {st.value} left out')
                     emit(m.LineBreak() if ch is None else m.Text(ch, style, ctag))
                 elif n == 'Variable':
-                    text = self.variable(st.str('VariableName', ''))
-                    if text:
-                        emit(m.Text(text, style, ctag))
+                    name = st.str('VariableName', '')
+                    page_var = self.page_variable(name, style, ctag)
+                    if page_var is not None:
+                        emit(page_var)
+                    else:
+                        text = self.variable(name)
+                        if text:
+                            emit(m.Text(text, style, ctag))
                 elif n == 'XRef':
                     if st.str('XRefSrcFile'):
                         xref = (None, [], '', '', '')
@@ -750,11 +876,14 @@ class Builder:
         if d is None:
             self.warn(f'variable {name!r} has no definition; left out')
             return ''
-        if re.search(r'<\$(cur|last)pagenum|<\$pagenum|<\$para(text|num|tag)|<\$marker|'
-                     r'<\$(tbl|table)', d):
+        if PAGE_BLOCKS.search(d):
             self.warn(f'variable {name!r} (page numbers, running headers) has no meaning '
                       'outside FrameMaker pages; left out')
             return ''
+        return self.fixed_text(name, d)
+
+    def fixed_text(self, name, d):
+        """A variable definition with its date and file name building blocks filled in."""
         if re.search(r'<\$(short)?(year|month|day)|<\$(hour|minute|second|ampm|AMPM)', d):
             d = self.date_text(name, d)
         d = d.replace('<$filename>', os.path.splitext(os.path.basename(self.mif_path))[0])
@@ -763,6 +892,42 @@ class Builder:
             self.warn(f'variable {name!r}: building blocks in {d!r} not supported; left out')
         d = re.sub(r'<\$[^>]*>', '', d)
         return re.sub(r'</?[^<>]*>', '', d)  # character format switches like <Emphasis>
+
+    def page_variable(self, name, style, ctag):
+        """A PageVariable for a variable with page numbers or a running header, else None.
+
+        <$curpagenum> and <$lastpagenum> become page fields, <$paratext[Tag]> (and
+        <$paranum[Tag]>, whose number is part of the text here) the text of the nearest
+        paragraph with that tag; dates and file names are filled in as for other variables.
+        """
+        d = self.variables.get(name)
+        if d is None or name in ('Table Continuation', 'Table Sheet') or not PAGE_BLOCKS.search(d):
+            return None
+        parts = []
+        for piece in re.split(r'(<\$\w+(?:\[[^\]]*\])?>)', d):
+            block = re.fullmatch(r'<\$(\w+)(?:\[([^\]]*)\])?>', piece)
+            if not block:
+                text = re.sub(r'</?[^<>]*>', '', piece).translate(PLAIN)
+                if text:
+                    parts.append(m.Text(text, style, ctag))
+            elif block.group(1) in ('curpagenum', 'pagenum'):
+                parts.append(m.FieldCode('page', '', '1'))
+            elif block.group(1) == 'lastpagenum':
+                parts.append(m.FieldCode('pages', '', '1'))
+            elif block.group(1) in ('paratext', 'paranum', 'paranumonly'):
+                # [Tag1,Tag2] lists alternatives; '+' (search forward) is not a tag
+                tags = [t.strip() for t in (block.group(2) or '').split(',') if t.strip() not in ('', '+', '-')]
+                if tags:
+                    parts.append(m.FieldCode('styleref', tags[0]))
+            elif PAGE_BLOCKS.match(piece):
+                self.warn(f'variable {name!r}: {piece} is not supported; left out')
+            else:
+                text = self.fixed_text(name, piece)
+                if text:
+                    parts.append(m.Text(text, style, ctag))
+        if not any(isinstance(p, m.FieldCode) for p in parts):
+            return None
+        return m.PageVariable(name, parts)
 
     def date_text(self, name, d):
         """Fill date building blocks: current date for 'Current Date', the MIF file's
@@ -961,6 +1126,8 @@ UNDERLINE = {'FSingle': 'single', 'FNumeric': 'single', 'FDouble': 'double'}
 CASE = {'FUppercase': 'upper', 'FSmallCaps': 'small'}
 POSITION = {'FSuperscript': 'super', 'FSubscript': 'sub', 'FNormal': ''}
 PAGE_TOP = ('PageTop', 'LPageTop', 'RPageTop', 'ColumnTop')
+PAGE_NUM_STYLE = {'UCRoman': 'upper-roman', 'LCRoman': 'lower-roman', 'UCAlpha': 'upper-alpha',
+                  'LCAlpha': 'lower-alpha'}
 
 
 def _color(font, colors):

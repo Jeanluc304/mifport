@@ -23,6 +23,7 @@ class MarkdownWriter:
         self.warn = warn
 
     def write(self, doc):
+        doc = m.drop_page_variables(doc, self.warn)
         self.notes = []
         self.shift = 0
         out = []

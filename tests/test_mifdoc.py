@@ -21,7 +21,7 @@ sys.path.insert(0, ROOT)
 from mifdoc import mif, model as m  # noqa: E402
 from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
 from mifdoc.builder import Builder, split_index  # noqa: E402
-from mifdoc.formats import numbering, read_colors  # noqa: E402
+from mifdoc.formats import list_marker, numbering, read_colors, symbol_bullet  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
 from mifdoc.roles import is_sub, tag_number, tag_role  # noqa: E402
 from mifdoc.rtf import RtfWriter, esc as rtf_esc  # noqa: E402
@@ -195,8 +195,13 @@ class SampleTest(unittest.TestCase):
     def test_hidden_condition_and_variables(self):
         texts = [m.plain(p.inlines) for p in self.blocks(m.Paragraph)]
         self.assertIn('Hidden text follows.', texts)
-        self.assertIn('Version 1.2, pages:', texts)
-        self.assertTrue(any('Page Count' in w for w in self.warnings))
+        # a page variable stays in the model for RTF; Markdown leaves it out with a warning
+        self.assertIn('Version 1.2, pages: ', texts)
+        var = next(i for p in self.blocks(m.Paragraph) for i in p.inlines if isinstance(i, m.PageVariable))
+        self.assertEqual((var.name, var.parts), ('Page Count', [m.FieldCode('pages', '', '1')]))
+        warnings = []
+        MarkdownWriter('pandoc', warnings.append).write(self.doc)
+        self.assertTrue(any('Page Count' in w for w in warnings))
 
     def test_cross_reference(self):
         link = next(i for p in self.blocks(m.Paragraph) for i in p.inlines if isinstance(i, m.Link))
@@ -952,6 +957,62 @@ def tagged(pgf, *items):
     return "<Para " + pgf + " <ParaLine " + ' '.join(items) + ">>"
 
 
+PAGES_MIF = r"""<MIFFile 2015>
+<ColorCatalog <Color <ColorTag `Black'> <ColorBlack 100>>>
+<PgfCatalog
+ <Pgf <PgfTag `Body'> <PgfFont <FFamily `Times'> <FSize 10 pt>>>
+ <Pgf <PgfTag `Heading1'> <PgfFont <FFamily `Arial'> <FSize 16 pt> <FWeight `Bold'>>>
+ <Pgf <PgfTag `Header'> <PgfFont <FFamily `Arial'> <FSize 8 pt>> <TabStop <TSX 400 pt> <TSType Right>>>
+ <Pgf <PgfTag `Alpha'> <PgfFont <FFamily `Times'> <FSize 10 pt>> <PgfFIndent 0 pt> <PgfLIndent 18 pt>
+      <PgfAutoNum Yes> <PgfNumFormat `(<a+\>)\\t'>>
+ <Pgf <PgfTag `Dots'> <PgfFont <FFamily `Times'> <FSize 10 pt>> <PgfFIndent 0 pt> <PgfLIndent 18 pt>
+      <PgfAutoNum Yes> <PgfNumFormat `l\\t'> <PgfNumberFont `Ding'>>
+ <Pgf <PgfTag `Roman'> <PgfFont <FFamily `Times'> <FSize 10 pt>> <PgfFIndent 0 pt> <PgfLIndent 18 pt>
+      <PgfAutoNum Yes> <PgfNumFormat `<R+\>.'>>>
+<FontCatalog <Font <FTag `Ding'> <FFamily `Zapf Dingbats'> <FWeight `Bold'>>>
+<VariableFormats
+ <VariableFormat <VariableName `Current Page #'> <VariableDef `<$curpagenum\>'>>
+ <VariableFormat <VariableName `Running'> <VariableDef `<$paratext[Heading1]\>'>>
+ <VariableFormat <VariableName `Pages'> <VariableDef `<$lastpagenum\>'>>>
+<Document <DPageSize 595 pt 842 pt> <DTwoSides Yes> <DStartPage 5> <DPageNumStyle LCRoman>>
+<Page <PageType RightMasterPage> <PageTag `Right'>
+ <TextRect <ID 10> <ShapeRect 72 pt 20 pt 450 pt 20 pt>>
+ <TextRect <ID 11> <ShapeRect 72 pt 72 pt 450 pt 650 pt>>
+ <TextRect <ID 12> <ShapeRect 72 pt 750 pt 450 pt 20 pt>>>
+<Page <PageType LeftMasterPage> <PageTag `Left'>
+ <TextRect <ID 20> <ShapeRect 72 pt 20 pt 450 pt 20 pt>>
+ <TextRect <ID 21> <ShapeRect 72 pt 72 pt 450 pt 650 pt>>>
+<Page <PageType OtherMasterPage> <PageTag `Title'>
+ <TextRect <ID 30> <ShapeRect 72 pt 72 pt 450 pt 650 pt>>
+ <TextRect <ID 31> <ShapeRect 72 pt 750 pt 450 pt 20 pt>>>
+<Page <PageType BodyPage> <PageBackground `Title'> <TextRect <ID 1> <ShapeRect 72 pt 72 pt 450 pt 650 pt>>>
+<Page <PageType BodyPage> <PageBackground `Default'> <TextRect <ID 2> <ShapeRect 72 pt 72 pt 450 pt 650 pt>>>
+<TextFlow <TFTag `A'> <TFAutoConnect Yes>
+ <Para <PgfTag `Heading1'> <ParaLine <TextRectID 1> <String `Intro'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `Text with '> <Variable <VariableName `Pages'>> <String ` pages.'>>>
+ <Para <PgfTag `Alpha'> <ParaLine <String `first'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `between'>>>
+ <Para <PgfTag `Dots'> <ParaLine <String `dot'>>>
+ <Para <PgfTag `Body'> <ParaLine <String `between'>>>
+ <Para <PgfTag `Roman'> <ParaLine <TextRectID 2> <String `one'>>>>
+<TextFlow <TFTag `A'> <TFAutoConnect Yes> <Para <PgfTag `Body'> <ParaLine <TextRectID 11>>>>
+<TextFlow <TFTag `A'> <TFAutoConnect Yes> <Para <PgfTag `Body'> <ParaLine <TextRectID 21>>>>
+<TextFlow <TFTag `A'> <TFAutoConnect Yes> <Para <PgfTag `Body'> <ParaLine <TextRectID 30>>>>
+<TextFlow <Para <PgfTag `Header'> <ParaLine <TextRectID 10> <String `Guide'> <Char Tab>
+  <Variable <VariableName `Running'>>>>>
+<TextFlow <Para <PgfTag `Header'> <ParaLine <TextRectID 12> <String `Page '> <Variable <VariableName `Current Page #'>>>>>
+<TextFlow <Para <PgfTag `Header'> <ParaLine <TextRectID 20> <String `Left side'>>>>
+<TextFlow <Para <PgfTag `Header'> <ParaLine <TextRectID 31> <String `Confidential'>>>>
+"""
+
+
+def pages_doc():
+    """A two-sided document with master pages, a title page and three list formats."""
+    warnings = []
+    root = mif.parse(PAGES_MIF)
+    return Builder(root, os.path.join(SAMPLE, 'pages.mif'), warn=warnings.append, pages=True).build(), warnings
+
+
 class RtfTest(unittest.TestCase):
     """mif2rtf: FrameMaker's formats as styles, the structure as Word structure."""
 
@@ -1118,6 +1179,59 @@ class RtfTest(unittest.TestCase):
         colors = read_colors(root)
         self.assertEqual(colors['Mid'], (128, 128, 128))
         self.assertEqual(colors['Light'], (192, 192, 192))
+
+    def test_list_markers(self):
+        self.assertEqual(list_marker('S:<n+>.\\t'), ('decimal', '', '.', '', True))
+        self.assertEqual(list_marker('(<a+>)\\t'), ('lower-alpha', '(', ')', '', True))
+        self.assertEqual(list_marker('<R+>.'), ('upper-roman', '', '.', '', False))
+        self.assertEqual(list_marker('<$chapnum>-<n+>\\t'), ('decimal', '', '', '', True))
+        self.assertEqual(list_marker('<Emphasis><n+>)<Default ¶ Font>\\t')[:3], ('decimal', '', ')'))
+        self.assertEqual(list_marker('–\\t'), ('bullet', '', '', '–', True))
+        self.assertEqual(symbol_bullet('l', 'Zapf Dingbats'), '\N{BLACK CIRCLE}')
+        self.assertEqual(symbol_bullet('l', 'Times'), 'l')
+
+    def test_pages_headers_footers_and_list_formats(self):
+        doc, warnings = pages_doc()
+        pl = doc.pages
+        self.assertEqual((pl.start, pl.number_style, pl.first_page_own), (5, 'lower-roman', True))
+        self.assertEqual(round(pl.header_top), 20)
+        self.assertEqual(round(pl.footer_bottom), 72)          # 842 - 750 - 20
+        def page_var(paragraph):
+            return next(i for i in paragraph.inlines if isinstance(i, m.PageVariable))
+        self.assertEqual(m.plain(pl.header[0].inlines), 'Guide\t')
+        self.assertEqual(page_var(pl.header[0]).parts, [m.FieldCode('styleref', 'Heading1')])
+        self.assertEqual(page_var(pl.footer[0]).parts, [m.FieldCode('page', '', '1')])
+        self.assertEqual(m.plain(pl.header_left[0].inlines), 'Left side')
+        self.assertIsNone(pl.header_first)                     # the title page has no header
+        self.assertEqual(m.plain(pl.footer_first[0].inlines), 'Confidential')
+        lists = [b for b in doc.blocks if isinstance(b, m.ListBlock)]
+        alpha, dots, roman = (l.marker for l in lists)
+        self.assertEqual((alpha.style, alpha.prefix, alpha.suffix), ('lower-alpha', '(', ')'))
+        self.assertEqual((dots.style, dots.bullet, dots.font.family, dots.font.bold), ('bullet', '\N{BLACK CIRCLE}', None, True))
+        self.assertEqual((roman.style, roman.tab), ('upper-roman', False))
+
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertTrue(rtf_groups_balanced(out))
+        self.assertIn('\\pgnstarts5\\pgnrestart\\pgnlcrm', out)
+        self.assertIn('\\titlepg', out)
+        for word in ('headerr', 'headerl', 'footerr', 'headerf', 'footerf'):
+            self.assertIn('{\\%s ' % word, out)
+        self.assertIn('{\\headerf \\pard\\plain\\par}', out)   # explicitly empty
+        self.assertRegex(out, r'STYLEREF "Heading1" \}\}')
+        self.assertIn('fldinst{ PAGE }', out)
+        # (a): lower-alpha, text "(" + number + ")", the number at position 2
+        self.assertIn("\\levelnfc4\\leveljc0\\levelfollow0\\levelstartat1{\\leveltext\\'03(\\'00);}"
+                      "{\\levelnumbers\\'02;}", out)
+        self.assertIn("\\levelnfc23\\leveljc0\\levelfollow0\\levelstartat1{\\leveltext\\'01\\u9679\\'3f;}"
+                      "{\\levelnumbers;}\\b", out)                # Zapf Dingbats 'l', bold number font
+        self.assertIn('\\levelnfc1\\leveljc0\\levelfollow2', out)   # roman, no tab after it
+        # Markdown has no pages: the variables are left out with a warning
+        md_warnings = []
+        md = MarkdownWriter('pandoc', md_warnings.append).write(doc)
+        self.assertNotIn('Guide', md)                          # headers are not part of Markdown
+        self.assertIn('Text with  pages.', md)                  # left out, as before
+        self.assertTrue(any("'Pages'" in w for w in md_warnings))
+        self.assertIn('Text with {\\field{\\*\\fldinst{ NUMPAGES }}', out)
 
     def test_missing_and_unsupported_graphics_become_placeholders(self):
         img = m.Image(None, 'Graphics/missing.png')

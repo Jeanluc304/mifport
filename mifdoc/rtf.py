@@ -24,6 +24,9 @@ ALIGN = {'left': r'\ql', 'center': r'\qc', 'right': r'\qr', 'justify': r'\qj'}
 TAB_KIND = {'Left': '', 'Center': r'\tqc', 'Right': r'\tqr', 'Decimal': r'\tqdec'}
 TAB_LEADER = {'.': r'\tldot', '-': r'\tlhyph', '_': r'\tlul', '=': r'\tleq', '·': r'\tlmdot'}
 BULLETS = ['\N{BULLET}', '\N{WHITE BULLET}', '\N{BLACK SMALL SQUARE}']
+LEVEL_NFC = {'decimal': 0, 'upper-roman': 1, 'lower-roman': 2, 'upper-alpha': 3, 'lower-alpha': 4}
+PAGE_NFC = {'decimal': r'\pgndec', 'upper-roman': r'\pgnucrm', 'lower-roman': r'\pgnlcrm',
+            'upper-alpha': r'\pgnucltr', 'lower-alpha': r'\pgnlcltr'}
 MONO_FONT = 'Courier New'
 DEFAULT_FONT = 'Times New Roman'
 CELL_PAD = 80          # twips between cell border and text (4 pt)
@@ -82,6 +85,11 @@ def style_name(tag):
     return esc(name + ' (FrameMaker)' if name.lower() == 'normal' else name)
 
 
+def u16(text):
+    """Length in UTF-16 units, as RTF counts characters in \\leveltext."""
+    return len(text.encode('utf-16-le')) // 2
+
+
 def image_size(data):
     """(width, height) in pixels of PNG or JPEG data, from the file header; None otherwise."""
     if data[:8] == b'\x89PNG\r\n\x1a\n' and len(data) >= 24:
@@ -130,13 +138,14 @@ class RtfWriter:
         if doc.title:
             body.append(self.para(doc.title, doc.title_tag))
         body += self.blocks(doc.blocks)
+        section = self.section(doc.pages)
         # Fonts, colours, styles and lists are registered while the body is written, and the
         # style sheet registers fonts and colours too; so the font and colour tables come last.
         styles, lists = self.stylesheet(), self.list_tables()
         return ''.join([
             r'{\rtf1\ansi\ansicpg1252\uc1\deff0\deflang%d' % lang, '\n',
             self.font_table(), self.color_table(), styles, lists,
-            self.info(doc), self.page_setup(st), '\n',
+            self.info(doc), self.page_setup(st), section, '\n',
             ''.join(body), '}\n'])
 
     def _collect_outline(self, blocks):
@@ -191,6 +200,41 @@ class RtfWriter:
         if st.two_sided:
             s += r'\facingp\margmirror'
         return s + r'\sectd\sbknone'
+
+    def section(self, pl):
+        r"""Page numbering, header and footer position, and the headers and footers of
+        the (only) section. Two-sided documents get \headerl/\headerr; a first page with a
+        master page of its own gets \titlepg and \headerf/\footerf."""
+        if pl is None:
+            return ''
+        s = r'\pgnstarts%d\pgnrestart%s' % (max(1, pl.start), PAGE_NFC.get(pl.number_style, r'\pgndec'))
+        if pl.header_top:
+            s += r'\headery%d' % tw(pl.header_top)
+        if pl.footer_bottom:
+            s += r'\footery%d' % tw(pl.footer_bottom)
+        if pl.first_page_own:
+            s += r'\titlepg'
+        two_sided = self.doc.style is not None and self.doc.style.two_sided
+        parts = []
+
+        def region(word, blocks, empty=False):
+            if blocks:
+                parts.append('{\\%s ' % word + ''.join(self.blocks(blocks)) + '}')
+            elif empty:  # explicitly empty, so that Word does not show another one
+                parts.append('{\\%s \\pard\\plain\\par}' % word)
+
+        if two_sided:
+            region('headerr', pl.header)
+            region('headerl', pl.header_left)
+            region('footerr', pl.footer)
+            region('footerl', pl.footer_left)
+        else:
+            region('header', pl.header)
+            region('footer', pl.footer)
+        if pl.first_page_own:
+            region('headerf', pl.header_first, empty=True)
+            region('footerf', pl.footer_first, empty=True)
+        return s + ('\n' + '\n'.join(parts) if parts else '')
 
     # ---------- formats ----------
 
@@ -334,7 +378,7 @@ class RtfWriter:
         at the list's own start value; the paragraph's FrameMaker indents stay in charge."""
         n = len(self.lists) + 1
         level = min(depth, 8)
-        self.lists.append((n, lst.ordered, lst.start, level))
+        self.lists.append((n, lst.ordered, lst.start, level, lst.marker))
         out = []
         for item in lst.items:
             first = True
@@ -359,22 +403,35 @@ class RtfWriter:
         if not self.lists:
             return ''
         defs, overrides = [], []
-        for n, ordered, start, own in self.lists:
+        for n, ordered, start, own, marker in self.lists:
             levels = []
             for lvl in range(9):
-                if ordered:
-                    text = r"{\leveltext\'02\'0%d.;}{\levelnumbers\'01;}" % lvl
-                    levels.append(r'{\listlevel\levelnfc0\leveljc0\levelfollow0\levelstartat%d'
-                                  r'%s\li%d\fi-360}' % (start if lvl == own else 1, text, 360 * (lvl + 1)))
-                else:
-                    bullet = BULLETS[lvl % len(BULLETS)]
-                    text = r"{\leveltext\'01%s;}{\levelnumbers;}" % esc(bullet)
-                    levels.append(r'{\listlevel\levelnfc23\leveljc0\levelfollow0\levelstartat1'
-                                  r'%s\li%d\fi-360}' % (text, 360 * (lvl + 1)))
+                # the list's own level gets FrameMaker's number format; the others (unused)
+                # Word's defaults
+                mk = marker if lvl == own and marker else None
+                levels.append(self.list_level(lvl, ordered, start if lvl == own else 1, mk))
             defs.append(r'{\list\listtemplateid%d\listhybrid%s\listid%d}' % (n, ''.join(levels), n))
             overrides.append(r'{\listoverride\listid%d\listoverridecount0\ls%d}' % (n, n))
         return ('{\\*\\listtable' + '\n'.join(defs) + '}\n'
                 + '{\\*\\listoverridetable' + ''.join(overrides) + '}\n')
+
+    def list_level(self, lvl, ordered, start, mk):
+        r"""One \listlevel. \leveltext starts with its length and holds the number as a
+        placeholder (\'0N = the number of level N); \levelnumbers gives the placeholder's
+        position. \levelfollow0 puts a tab after the number, 2 nothing."""
+        follow = 0 if mk is None or mk.tab else 2
+        font = self.cf_props(mk.font) if mk is not None and mk.font else ''
+        if ordered and (mk is None or mk.style != 'bullet'):
+            prefix, suffix = (mk.prefix, mk.suffix) if mk else ('', '.')
+            nfc = LEVEL_NFC.get(mk.style if mk else 'decimal', 0)
+            text = (r"{\leveltext\'%02x" % (u16(prefix) + 1 + u16(suffix)) + esc(prefix)
+                    + r"\'%02x" % lvl + esc(suffix) + r";}{\levelnumbers\'%02x;}" % (u16(prefix) + 1))
+        else:
+            bullet = (mk.bullet if mk else '') or BULLETS[lvl % len(BULLETS)]
+            nfc = 23
+            text = r"{\leveltext\'%02x%s;}{\levelnumbers;}" % (u16(bullet), esc(bullet))
+        return (r'{\listlevel\levelnfc%d\leveljc0\levelfollow%d\levelstartat%d%s%s\li%d\fi-360}'
+                % (nfc, follow, start, text, font, 360 * (lvl + 1)))
 
     # ---------- tables ----------
 
@@ -475,6 +532,25 @@ class RtfWriter:
             return r'{\v' + self.field('XE "%s"' % esc(entry), '') + '}'
         if isinstance(i, m.Image):
             return self.image(i)
+        if isinstance(i, m.PageVariable):
+            return ''.join(self.text(p) if isinstance(p, m.Text) else self.field_code(p)
+                           for p in i.parts)
+        return ''
+
+    def field_code(self, fc):
+        """A page number, the number of pages, or a running header as a Word field."""
+        if fc.kind == 'page':
+            return self.field('PAGE', esc(fc.text))
+        if fc.kind == 'pages':
+            return self.field('NUMPAGES', esc(fc.text))
+        if fc.kind == 'styleref':
+            if fc.arg not in self.doc.formats:
+                # Word would show "Error! No text of specified style in document."
+                self.warn(f'running header for paragraph format {fc.arg!r}: no paragraph of '
+                          'that format is converted; left empty')
+                return ''
+            self.style_no(fc.arg)   # the style must exist under this name
+            return self.field('STYLEREF "%s"' % style_name(fc.arg), esc(fc.text))
         return ''
 
     def text(self, t):
