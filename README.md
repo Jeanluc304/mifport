@@ -320,9 +320,10 @@ escaped text comes back unchanged and that tables, footnotes and links are recog
 `UPDATE_EXPECTED=1 python3 -m unittest discover tests`.
 
 GitHub Actions runs the tests for every pull request and push to `main`
-(`.github/workflows/check.yml`): on Python 3.9, 3.12 and the newest 3.x with pandoc and
-Asciidoctor installed, and once with Python only. It also checks that `make_sample.py`
-reproduces the committed sample exactly.
+(`.github/workflows/check.yml`) on Python 3.9, 3.12 and the newest 3.x; the job on
+Python 3.12 also installs pandoc and Asciidoctor (their downloads are cached) and runs the
+tests that need them. It also checks that `make_sample.py` reproduces the committed sample
+exactly.
 
 ## Files
 
