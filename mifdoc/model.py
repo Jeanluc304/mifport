@@ -15,6 +15,7 @@ BOLD, ITALIC, CODE, SUPER, SUB, UNDERLINE, STRIKE = 'b', 'i', 'code', 'sup', 'su
 class Text:
     text: str
     style: frozenset = frozenset()
+    ctag: str = ''         # FrameMaker character format; only the RTF writer uses it
 
 
 @dataclass
@@ -71,8 +72,10 @@ class Image:
 
 # ---- blocks ----
 
-# `tag` on blocks is the FrameMaker paragraph tag the block came from. Writers ignore it;
-# it is there for --dump.
+# `tag` on blocks is the FrameMaker paragraph tag the block came from. The Markdown and
+# AsciiDoc writers ignore it (it is there for --dump); the RTF writer makes it the style.
+# `local` is set only when the paragraph overrides its tag's format (a local override in
+# FrameMaker); the RTF writer writes it as direct formatting.
 
 @dataclass
 class Heading:
@@ -81,18 +84,22 @@ class Heading:
     anchors: list = field(default_factory=list)
     tag: str = ''
     id: str = ''           # unique id for headings that are no cross-reference target
+    number: str = ''       # FrameMaker's autonumber ('2.1 '); only the RTF writer uses it
+    local: 'ParaFormat' = None   # the paragraph's own format if it overrides its tag's
 
 
 @dataclass
 class Paragraph:
     inlines: list
     tag: str = ''
+    local: 'ParaFormat' = None
 
 
 @dataclass
 class CodeBlock:
     text: str
     tag: str = ''
+    local: 'ParaFormat' = None
 
 
 @dataclass
@@ -165,11 +172,56 @@ class Style:
 
 
 @dataclass
+class ParaFormat:
+    """A FrameMaker paragraph format as the RTF writer needs it. Lengths in points;
+    `first` is the first-line indent from the column edge (FrameMaker's PgfFIndent), not
+    relative to `left`; colours are (r, g, b) tuples or None."""
+    family: str = ''
+    size: float = 12.0
+    bold: bool = False
+    italic: bool = False
+    underline: str = ''        # '', 'single' or 'double'
+    strike: bool = False
+    caps: str = ''             # '', 'upper' or 'small'
+    color: tuple = None
+    align: str = 'left'        # left, center, right, justify
+    left: float = 0.0
+    first: float = 0.0
+    right: float = 0.0
+    space_before: float = 0.0
+    space_after: float = 0.0
+    leading: float = 2.0
+    fixed_lines: bool = True   # line height exactly size + leading (else at least)
+    keep_next: bool = False
+    page_break: bool = False
+    hyphenate: bool = True
+    tabs: list = field(default_factory=list)   # (position, 'Left'|'Center'|'Right'|'Decimal', leader)
+
+
+@dataclass
+class CharFormat:
+    """A FrameMaker character format: only the properties it sets (None = not set)."""
+    family: str = None
+    size: float = None
+    bold: bool = None
+    italic: bool = None
+    underline: str = None
+    strike: bool = None
+    caps: str = None
+    color: tuple = None
+    position: str = None       # '', 'super' or 'sub'
+
+
+@dataclass
 class Document:
     title: list = None     # inlines, or None
     lang: str = ''         # BCP 47 language tag, e.g. 'de'
     blocks: list = field(default_factory=list)
     style: Style = None
+    # For the RTF writer, which keeps FrameMaker's formats; the other writers ignore them.
+    title_tag: str = ''
+    formats: dict = field(default_factory=dict)        # paragraph tag -> ParaFormat
+    char_formats: dict = field(default_factory=dict)   # character tag -> CharFormat
 
 
 def plain(inlines):

@@ -14,7 +14,9 @@ writers), so a new format does not need to know MIF.
 and Asciidoctor are only used by tests, which skip when they are missing.
 
 **Graphics are copied, not converted.** Converting would need Pillow, LibreOffice or
-similar. The tools warn about formats the next step cannot use instead.
+similar. The tools warn about formats the next step cannot use instead. RTF embeds PNG
+and JPEG files unchanged; the standard library reads their pixel size from the file
+header.
 
 **Warnings instead of errors.** A document can always contain something the converter
 does not handle. The conversion always finishes; every loss is reported once.
@@ -58,7 +60,10 @@ FrameMaker has no list structure; the indents are what the reader sees.
 
 **Heading numbers are dropped; other autonumbers are kept as text.** pandoc
 (`--number-sections`) and Asciidoctor (`:sectnums:`) number headings themselves. "Figure
-3: " and "Note: " labels are part of the text.
+3: " and "Note: " labels are part of the text. The RTF writer keeps heading numbers as
+text (`Heading.number`): Word has no equivalent of FrameMaker's number formats that a
+converter could set up reliably, and a document that looks like the original is the
+point of RTF.
 
 **Table titles keep their number separately (`Table.label`).** pandoc and Asciidoctor
 add "Table 1:" themselves; GFM has no captions, so its writer prints the label.
@@ -152,3 +157,56 @@ of words, which FrameMaker's character formats often require.
 **Complex table cells are `a|` cells.** They can hold lists and several paragraphs;
 simple cells stay `|` cells. Only one heading row is supported by Asciidoctor; further
 heading rows become body rows with a warning.
+
+## RTF
+
+**Formats become styles, structure stays structure (the hybrid approach).** RTF could
+imitate FrameMaker's pages (positioned frames, fixed numbers, master pages), but such a
+document is hard to edit. RTF could also keep only the structure with a few standard
+styles, but then the document no longer looks like the original. mif2rtf does both
+halves that are worth having: every FrameMaker format becomes a style of the same name
+with FrameMaker's values, and headings, lists, tables and footnotes are real Word
+structure.
+
+**Styles come from the catalog; local overrides are direct formatting.** A style defined
+from the first paragraph of a tag would carry that paragraph's local changes into every
+other paragraph. Paragraphs whose own format differs from their tag's get `local`, which
+is written as direct formatting, as Word itself does.
+
+**Each paragraph repeats its style's formatting.** RTF readers take a paragraph's look
+from its control words; `\sN` only names the style. Without the repetition, Word shows
+the right style name with the default look.
+
+**Footnote paragraphs name no style.** LibreOffice gives footnote paragraphs its own
+"Footnote" style and then drops direct formatting that equals the named style, so the
+text came out at its default size. With direct formatting only, both Word and Writer show
+FrameMaker's footnote format.
+
+**Every list has its own list definition.** Word continues numbering across paragraphs
+that share a list; FrameMaker restarts lists explicitly. One definition per list lets
+each start at its own number, and FrameMaker's indents (paragraph `\li`, `\fi`) override
+the list's default indents. Numbers are `1.` and bullets `•` for every list, because
+FrameMaker's number formats (`<a+>)`, `Step <n+>:`) have no reliable RTF equivalent.
+
+**Unicode as `\uN` with a hex fallback.** RTF is written as 7-bit ASCII. After `\uN` comes
+the fallback for old readers as a hex escape (`\'e9`, or `\'3f` for `?`), as Word writes
+it. A literal `?` as fallback is allowed by the specification, but pandoc then also drops
+the character after it ("café über" became "caféüer").
+
+**Cross-references are links with a `PAGEREF` field.** The field shows FrameMaker's page
+number until Word or Writer updates it; both update it for their own layout (LibreOffice
+when it renders, Word on printing or F9). Targets are bookmarks named after the anchor
+ids, made valid for Word: letters, digits and `_`, starting with a letter, at most 40
+characters, unique.
+
+**Index entries are `XE` fields.** That is Word's own form (`XE "Main:Sub"`). LibreOffice
+imports them as index marks but takes the whole text as the index key; there is no RTF
+form that LibreOffice reads better.
+
+**Tables get simple lines around every cell.** FrameMaker's ruling and shading rules are
+not in the model, which describes structure. Lines around every cell keep the table
+readable; the user can apply a table style in Word.
+
+**Fonts are named as in FrameMaker.** Word and Writer substitute missing fonts
+themselves; mapping names (`Times` → `Times New Roman`) would guess wrongly as often as
+right.

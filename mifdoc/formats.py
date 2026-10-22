@@ -62,6 +62,50 @@ def is_mono(font):
     return any(k in f for k in MONO)
 
 
+# FrameMaker's reserved colours, for documents without a ColorCatalog
+DEFAULT_COLORS = {'Black': (0, 0, 0), 'White': (255, 255, 255), 'Red': (255, 0, 0),
+                  'Green': (0, 255, 0), 'Blue': (0, 0, 255), 'Cyan': (0, 255, 255),
+                  'Magenta': (255, 0, 255), 'Yellow': (255, 255, 0)}
+
+
+def read_colors(root):
+    """Colour name -> (r, g, b) from the ColorCatalog.
+
+    MIF stores every colour as CMYK percentages. The conversion
+    RGB = 255 * (1 - min(1, ink + black)) keeps greys with a black component as light as
+    FrameMaker shows them (the textbook formula (1 - ink) * (1 - black) makes them darker).
+    A tint is its base colour mixed with white; the MIF Reference says a tint's own CMYK
+    values are ignored and black is used when the base colour does not exist.
+    """
+    colors = dict(DEFAULT_COLORS)
+    cat = root.get('ColorCatalog')
+    tints = []
+    for c in cat.all('Color') if cat else []:
+        name = c.str('ColorTag', '')
+        if c.get('ColorTintBaseColor') is not None:
+            tints.append((name, c.str('ColorTintBaseColor', ''), c.val('ColorTint')))
+            continue
+        k = _percent(c.val('ColorBlack'))
+        colors[name] = tuple(round(255 * (1 - min(1.0, _percent(c.val(ink)) + k)))
+                             for ink in ('ColorCyan', 'ColorMagenta', 'ColorYellow'))
+    # a tint may be based on a tint declared further down: resolve until nothing is left
+    pending = {name: (base, tint) for name, base, tint in tints}
+    while pending:
+        ready = [n for n, (base, _) in pending.items() if base not in pending or base == n]
+        for name in ready or list(pending):  # a cycle of tints: give up and use black
+            base, tint = pending.pop(name)
+            t = _percent(tint) if tint else 1.0
+            colors[name] = tuple(round(255 - (255 - v) * t) for v in colors.get(base, (0, 0, 0)))
+    return colors
+
+
+def _percent(value):
+    try:
+        return max(0.0, min(100.0, float((value or '0').strip().rstrip('%')))) / 100
+    except ValueError:
+        return 0.0
+
+
 class Formats:
     """Paragraph catalog, character catalog and the resolved format of every paragraph."""
 
@@ -77,6 +121,7 @@ class Formats:
         cat = root.get('FontCatalog')
         for f in cat.all('Font') if cat else []:
             self.char_catalog[f.str('FTag', '')] = font_props(f)
+        self.colors = read_colors(root)
         self.resolved = {}
         self._resolve_all(root)
 
@@ -89,6 +134,7 @@ class Formats:
         """
         d = dict(base)
         d['font'] = dict(base.get('font', {}))
+        tabs = None  # TabStop statements in this block replace the inherited tab stops
         for c in pgf.children:
             if c.name == 'PgfFont':
                 d['font'].update(font_props(c))
@@ -96,8 +142,15 @@ class Formats:
                 d['tag'] = c.text
             elif c.name == 'PgfNumFormat':
                 d['numformat'] = c.text
-            elif c.name != 'TabStop':
+            elif c.name == 'TabStop':
+                tabs = (tabs or []) + [(length(c.val('TSX')), c.val('TSType') or 'Left',
+                                        c.str('TSLeaderStr') or '')]
+            elif c.name == 'PgfNumTabs' and c.value.strip() == '0':
+                tabs = []
+            else:
                 d[c.name] = c.value
+        if tabs is not None:
+            d['tabs'] = tabs
         return d
 
     def _resolve_all(self, root):

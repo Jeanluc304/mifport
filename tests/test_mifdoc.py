@@ -1,4 +1,4 @@
-"""Tests for mif2md and mif2adoc. Run from the repository root:
+"""Tests for mif2md, mif2adoc and mif2rtf. Run from the repository root:
 
     python3 -m unittest discover tests
 
@@ -21,14 +21,16 @@ sys.path.insert(0, ROOT)
 from mifdoc import mif, model as m  # noqa: E402
 from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
 from mifdoc.builder import Builder, split_index  # noqa: E402
-from mifdoc.formats import numbering  # noqa: E402
+from mifdoc.formats import numbering, read_colors  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
 from mifdoc.roles import is_sub, tag_number, tag_role  # noqa: E402
+from mifdoc.rtf import RtfWriter, esc as rtf_esc  # noqa: E402
 
 SAMPLE = os.path.join(ROOT, 'samples', 'sample')
 EXPECTED = os.path.join(SAMPLE, 'expected')
 OUTPUTS = {'sample.md': ('mif2md.py', []), 'sample-gfm.md': ('mif2md.py', ['--flavor', 'gfm']),
-           'sample.adoc': ('mif2adoc.py', [])}
+           'sample.adoc': ('mif2adoc.py', []), 'sample.rtf': ('mif2rtf.py', [])}
+EXTENSIONS = {'mif2adoc.py': '.adoc', 'mif2rtf.py': '.rtf'}
 
 # Text that is markup somewhere in Markdown or AsciiDoc; each must come out unchanged.
 TRICKY = [
@@ -69,7 +71,7 @@ def build(path, warnings=None):
 
 
 def run_tool(script, args, mif_path, out_dir):
-    out = os.path.join(out_dir, 'out' + ('.adoc' if 'adoc' in script else '.md'))
+    out = os.path.join(out_dir, 'out' + EXTENSIONS.get(script, '.md'))
     p = subprocess.run([sys.executable, os.path.join(ROOT, script), mif_path, out] + args,
                        capture_output=True, text=True)
     if p.returncode:
@@ -268,7 +270,8 @@ class SampleTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             for name, (script, args) in OUTPUTS.items():
                 text, _ = run_tool(script, args, os.path.join(SAMPLE, 'sample.mif'), tmp)
-                self.assertTrue(os.path.isfile(os.path.join(tmp, 'images', 'dot.png')))
+                if script != 'mif2rtf.py':  # RTF embeds its pictures instead
+                    self.assertTrue(os.path.isfile(os.path.join(tmp, 'images', 'dot.png')))
                 path = os.path.join(EXPECTED, name)
                 if update:
                     os.makedirs(EXPECTED, exist_ok=True)
@@ -909,6 +912,221 @@ class AsciidoctorTest(unittest.TestCase):
         self.assertIn('colspan="2"', out)
         self.assertIn('href="#introduction"', out)
         self.assertIn('class="footnote"', out)
+
+
+def rtf_groups_balanced(text):
+    """Do the braces of an RTF text balance, ignoring escaped ones?"""
+    depth = 0
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == '\\':
+            i += 2
+            continue
+        if c in '{}':
+            depth += 1 if c == '{' else -1
+            if depth < 0:
+                return False
+        i += 1
+    return depth == 0
+
+
+RTF_CATALOG = """<ColorCatalog
+ <Color <ColorTag `Black'> <ColorCyan 0> <ColorMagenta 0> <ColorYellow 0> <ColorBlack 100>>
+ <Color <ColorTag `Ocean'> <ColorCyan 100> <ColorMagenta 50> <ColorYellow 0> <ColorBlack 0>>
+ <Color <ColorTag `Ocean 50%'> <ColorTint 50> <ColorTintBaseColor `Ocean'>
+        <ColorCyan 99> <ColorMagenta 99> <ColorYellow 99> <ColorBlack 99>>
+ <Color <ColorTag `Lost tint'> <ColorTint 50> <ColorTintBaseColor `Nowhere'>>>
+<PgfCatalog
+ <Pgf <PgfTag `Body'> <PgfFont <FFamily `Times'> <FSize 10 pt>> <PgfLIndent 36 pt> <PgfFIndent 36 pt>
+      <PgfSpAfter 6 pt> <PgfLeading 2 pt> <PgfLineSpacing Fixed>>
+ <Pgf <PgfTag `ChapterTitle'> <PgfFont <FFamily `Arial'> <FSize 16 pt> <FWeight `Bold'> <FColor `Ocean'>>
+      <PgfAlignment Center> <PgfWithNext Yes> <PgfPlacement PageTop> <PgfNumFormat `<n+>.\\t'>>
+ <Pgf <PgfTag `Prices'> <PgfFont <FFamily `Times'> <FSize 10 pt>> <PgfNumTabs 2>
+      <TabStop <TSX 72 pt> <TSType Left> <TSLeaderStr `.'>> <TabStop <TSX 144 pt> <TSType Decimal>>>>
+<FontCatalog <Font <FTag `Warning'> <FColor `Ocean 50%'> <FWeight `Bold'> <FCase FSmallCaps>>>"""
+
+
+def tagged(pgf, *items):
+    """A Para with paragraph statements `pgf` (PgfTag, Pgf, PgfNumString) and line items."""
+    return "<Para " + pgf + " <ParaLine " + ' '.join(items) + ">>"
+
+
+class RtfTest(unittest.TestCase):
+    """mif2rtf: FrameMaker's formats as styles, the structure as Word structure."""
+
+    def rtf(self, body, extra=''):
+        doc, _ = doc_from(body, extra, catalog=RTF_CATALOG)
+        warnings = []
+        return RtfWriter(warnings.append).write(doc), doc, warnings
+
+    def test_sample_is_valid_rtf_with_styles_and_structure(self):
+        doc = build(os.path.join(SAMPLE, 'sample.mif'))
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertTrue(out.startswith('{\\rtf1'))
+        self.assertTrue(rtf_groups_balanced(out))
+        out.encode('ascii')  # every other character is a \u escape
+        for tag in ('Body', 'Heading1', 'Heading2', 'Bulleted', 'Code', 'CellBody'):
+            self.assertRegex(out, r'\{\\s\d+[^{};]* %s;\}' % tag)
+        self.assertRegex(out, r'\\outlinelevel0[^;]* Heading1;')
+        self.assertIn('\\additive\\i Emphasis;', out)       # character formats as styles
+        self.assertIn('{\\*\\listtable', out)
+        self.assertEqual(out.count('{\\footnote '), 2)
+        self.assertIn('\\trhdr', out)                        # heading rows repeat
+        self.assertIn('\\clvmgf', out)                       # merged cells
+        self.assertIn('\\pngblip', out)                      # the graphic is embedded
+        # every field target is a bookmark
+        marks = set(re.findall(r'\\bkmkstart (\w+)', out))
+        targets = set(re.findall(r'(?:PAGEREF|HYPERLINK \\\\l "?)(\w+)', out))
+        self.assertTrue(targets)
+        self.assertLessEqual(targets, marks)
+
+    def test_formats_come_from_the_catalog(self):
+        out, doc, _ = self.rtf(
+            tagged("<PgfTag `ChapterTitle'> <PgfNumString `3.\\t'>", "<String `Getting started'>")
+            + tagged("<Pgf <PgfTag `Body'> <PgfLIndent 0 pt>>", "<String `local override'>"))
+        style = re.search(r'\{\\s\d+([^{};]*) Body;\}', out).group(1)
+        self.assertIn('\\li720\\fi0', style)                 # 36 pt, from the catalog
+        self.assertIn('\\sa120\\sl-240\\slmult0', style)     # space after, exactly 10 + 2 pt
+        # the local override changes that paragraph only, not the style
+        local = out.split('local override')[0].rsplit('\\pard', 1)[1]
+        self.assertIn('\\li0\\fi720', local)          # left 0, first line still at 36 pt
+        title = re.search(r'\{\\s\d+([^{};]*) ChapterTitle;\}', out).group(1)
+        for word in ('\\qc', '\\keepn', '\\pagebb', '\\b', '\\fs32'):
+            self.assertIn(word, title)
+        ocean = re.search(r'\\colortbl;(.*?)\}', out).group(1).split(';')
+        self.assertIn('\\red0\\green128\\blue255', ocean)     # CMYK 100/50/0/0
+        self.assertIn('\\cf1', title)
+        self.assertRegex(out, r'3\. \{\\\*\\bkmkstart \w+\}Getting started')   # FrameMaker's number
+
+    def test_heading_numbers_tabs_and_character_formats(self):
+        out, doc, _ = self.rtf(
+            tagged("<PgfTag `Prices'>", "<String `Tea'> <Char Tab> <String `2.50'>")
+            + para("<Font <FTag `Warning'>> <String `Careful'> <Font <FTag `'>> <String ` now'>"))
+        style = re.search(r'\{\\s\d+([^{};]*) Prices;\}', out).group(1)
+        self.assertIn('\\tldot\\tx1440', style)
+        self.assertIn('\\tqdec\\tx2880', style)
+        self.assertIn('Tea\\tab 2.50', out)
+        cs = re.search(r'\{\\\*\\cs(\d+)\\additive([^;]*) Warning;\}', out)
+        self.assertIn('\\b', cs.group(2))
+        self.assertIn('\\scaps', cs.group(2))
+        self.assertIn('{\\cs%s' % cs.group(1), out)
+        self.assertIn('Careful}', out)
+
+    def test_colors_and_tints(self):
+        root = mif.parse(RTF_CATALOG)
+        colors = read_colors(root)
+        self.assertEqual(colors['Ocean'], (0, 128, 255))
+        self.assertEqual(colors['Ocean 50%'], (128, 192, 255))   # own CMYK values ignored
+        self.assertEqual(colors['Lost tint'], (128, 128, 128))   # missing base: black
+        self.assertEqual(colors['Black'], (0, 0, 0))
+
+    def test_escaping(self):
+        self.assertEqual(rtf_esc('a{b}c\\d'), 'a\\{b\\}c\\\\d')
+        # Unicode with the Windows-1252 byte as fallback, as Word writes it; '?' as \\'3f
+        self.assertEqual(rtf_esc('caf\u00e9 \u20ac'), "caf\\u233\\'e9 \\u8364\\'80")
+        self.assertEqual(rtf_esc('x\u00a0y\tz'), 'x\\~y\\tab z')
+        self.assertEqual(rtf_esc('\U0001F600'), "\\u-10179\\'3f\\u-8704\\'3f")   # surrogate pair
+        self.assertEqual(rtf_esc('\uffff'), "\\u-1\\'3f")
+
+    def test_merged_cells(self):
+        rows = [m.Row('head', [m.Cell([m.Paragraph([m.Text('A')])], colspan=2), None, m.Cell([m.Paragraph([m.Text('B')])])]),
+                m.Row('body', [m.Cell([m.Paragraph([m.Text('tall')])], rowspan=2), m.Cell([]), m.Cell([])]),
+                m.Row('body', [None, m.Cell([m.Paragraph([m.Text('x')])]), m.Cell([])])]
+        out = RtfWriter(lambda s: None).write(m.Document(blocks=[m.Table([50.0, 50.0, 50.0], rows)]))
+        self.assertTrue(rtf_groups_balanced(out))
+        rows_rtf = out.split('\\row')[:-1]
+        self.assertEqual(len(rows_rtf), 3)
+        self.assertEqual(re.findall(r'\\cellx(\d+)', rows_rtf[0]), ['2000', '3000'])  # A spans two
+        self.assertIn('\\trhdr', rows_rtf[0])
+        self.assertIn('\\clvmgf', rows_rtf[1])
+        self.assertIn('\\clvmrg', rows_rtf[2])
+        for r in rows_rtf:  # as many cells as cell definitions
+            self.assertEqual(r.count('\\cellx'), len(re.findall(r'\\cell\n', r)))
+
+    def test_lists_restart_and_nest(self):
+        doc = m.Document(blocks=[
+            m.ListBlock(True, [[m.Paragraph([m.Text('one')]), m.ListBlock(False, [[m.Paragraph([m.Text('sub')])]])]]),
+            m.ListBlock(True, [[m.Paragraph([m.Text('again')])]], start=5)])
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertIn('\\levelstartat5', out)
+        self.assertRegex(out, r'\\ls1\\ilvl0[^ ]* one')
+        self.assertRegex(out, r'\\ls2\\ilvl1[^ ]* sub')
+        self.assertRegex(out, r'\\ls3\\ilvl0[^ ]* again')
+
+    def test_bookmark_names_are_valid_and_unique(self):
+        w = RtfWriter(lambda s: None)
+        w.bookmarks = {}
+        names = [w.bookmark(i) for i in ('1-intro', 'a b', 'a_b', 'x' * 60, 'x' * 61)]
+        for n in names:
+            self.assertRegex(n, r'^[A-Za-z]\w{0,39}$')
+        self.assertEqual(len(set(names)), len(names))
+        self.assertEqual(w.bookmark('a b'), names[1])
+
+    def test_nested_list_keeps_its_start(self):
+        inner = m.ListBlock(True, [[m.Paragraph([m.Text('x')])]], start=5)
+        doc = m.Document(blocks=[m.ListBlock(True, [[m.Paragraph([m.Text('a')]), inner]], start=3)])
+        out = RtfWriter(lambda s: None).write(doc)
+        lists = re.findall(r'\{\\list\\listtemplateid(\d)\\listhybrid(.*?)\\listid\d\}', out)
+        starts = {n: re.findall(r'\\levelstartat(\d+)', body)[:2] for n, body in lists}
+        self.assertEqual(starts['1'][0], '3')   # outer list, level 1
+        self.assertEqual(starts['2'][1], '5')   # inner list, written at level 2
+
+    def test_field_texts_are_escaped(self):
+        doc = m.Document(blocks=[m.Paragraph([
+            m.Link('file:\\\\srv\\{x}\\\u00e4 "q"', [m.Text('link')], internal=False),
+            m.IndexTerm(['C:\\path', 'say "hi": now'])])])
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertTrue(rtf_groups_balanced(out))
+        out.encode('ascii')
+        # a backslash is doubled for Word's field parser, then escaped for RTF
+        self.assertIn('HYPERLINK "file:' + '\\\\' * 4 + 'srv' + '\\\\' * 2 + '\\{x\\}', out)
+        self.assertIn('%22q%22', out)
+        self.assertIn('XE "C;' + '\\\\' * 2 + 'path:say ', out)   # ':' in a level -> ';'
+
+    def test_empty_uncovered_cell_keeps_its_column(self):
+        rows = [m.Row('body', [None, m.Cell([m.Paragraph([m.Text('a')])])])]
+        out = RtfWriter(lambda s: None).write(m.Document(blocks=[m.Table([50.0, 50.0], rows)]))
+        self.assertEqual(re.findall(r'\\cellx(\d+)', out), ['1000', '2000'])
+
+    def test_footnote_starting_with_a_list_is_numbered(self):
+        note = m.FootnoteRef([m.ListBlock(False, [[m.Paragraph([m.Text('point')])]])])
+        out = RtfWriter(lambda s: None).write(m.Document(blocks=[m.Paragraph([m.Text('x'), note])]))
+        self.assertEqual(out.count('\\chftn'), 2)
+        self.assertTrue(rtf_groups_balanced(out))
+
+    def test_heading_tag_in_a_cell_is_body_text(self):
+        cell = m.Cell([m.Paragraph([m.Text('in cell')], 'Head1')])
+        doc = m.Document(blocks=[m.Heading(1, [m.Text('Top')], tag='Head1'),
+                                 m.Table([50.0], [m.Row('body', [cell])])],
+                         formats={'Head1': m.ParaFormat(size=14, bold=True)})
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertRegex(out, r'\\outlinelevel0[^ ]* Top')
+        self.assertRegex(out, r'\\outlinelevel9[^ ]* in cell')
+
+    def test_awkward_tag_names(self):
+        doc = m.Document(blocks=[m.Paragraph([m.Text('a')], 'Normal'), m.Paragraph([m.Text('b')], 'x;y,z')],
+                         formats={'Normal': m.ParaFormat(), 'x;y,z': m.ParaFormat()})
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertIn(' Normal (FrameMaker);}', out)
+        self.assertIn(' x.y.z;}', out)
+        self.assertEqual(out.count(' Normal;}'), 1)   # only RTF's own default style
+
+    def test_tint_of_a_later_tint(self):
+        root = mif.parse("<ColorCatalog <Color <ColorTag `Light'> <ColorTint 50> <ColorTintBaseColor `Mid'>>"
+                         " <Color <ColorTag `Mid'> <ColorTint 50> <ColorTintBaseColor `Black'>>>")
+        colors = read_colors(root)
+        self.assertEqual(colors['Mid'], (128, 128, 128))
+        self.assertEqual(colors['Light'], (192, 192, 192))
+
+    def test_missing_and_unsupported_graphics_become_placeholders(self):
+        img = m.Image(None, 'Graphics/missing.png')
+        svg = m.Image(os.path.join(SAMPLE, 'make_sample.py'), 'drawing.svg')
+        warnings = []
+        out = RtfWriter(warnings.append).write(m.Document(blocks=[m.ImageBlock(img), m.ImageBlock(svg)]))
+        self.assertIn('[missing.png]', out)
+        self.assertNotIn('\\pict', out)
+        self.assertEqual(len(warnings), 2)
 
 
 if __name__ == '__main__':

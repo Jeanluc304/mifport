@@ -79,7 +79,8 @@ def run(args, ext, make_writer, style_file=None):
     out_dir = os.path.dirname(os.path.abspath(output))
     if not os.path.isdir(out_dir):
         sys.exit(f'error: the folder for the output file does not exist: {out_dir}')
-    place_images(doc, args, output, ext)
+    if ext != '.rtf':  # RTF embeds its pictures
+        place_images(doc, args, output, ext)
     text = make_writer().write(doc)
     with open(output, 'w', encoding='utf-8', newline='\n') as f:
         f.write(text)

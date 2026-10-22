@@ -15,7 +15,7 @@ Only the latest version on `main` receives fixes.
 
 ## What to be aware of when converting untrusted files
 
-mif2md and mif2adoc read MIF files and the files they refer to. Treat a MIF file from an
+mif2md, mif2adoc and mif2rtf read MIF files and the files they refer to. Treat a MIF file from an
 unknown source like any other untrusted document:
 
 - **Referenced files are read from anywhere.** A MIF file names its imported graphics by
@@ -24,14 +24,17 @@ unknown source like any other untrusted document:
   (unless `--no-copy-images` is given); files already in that folder are never
   overwritten, a different graphic of the same name gets a new name. A crafted MIF file
   can therefore make the converters copy any readable file from your computer next to the
-  output, where you might publish it by mistake.
+  output, where you might publish it by mistake. mif2rtf does not copy graphics; it
+  **embeds** every PNG and JPEG file it finds into the RTF itself, so a crafted MIF file can
+  put such files from your computer into the RTF you pass on.
 - **`include` statements read other files.** MIF's `include (pathname)` inserts another
   file, relative or absolute, into the MIF text before it is read (up to 10 levels deep).
   Its content can end up in the output.
 - **The output is processed by other programs.** The Markdown and AsciiDoc the converters
   write is meant for pandoc, Asciidoctor and similar tools. Text from the MIF file is
   escaped so that it cannot become markup or directives (for example AsciiDoc
-  `include::`, raw HTML in Markdown); graphics are referenced by the copied file names.
+  `include::`, raw HTML in Markdown); graphics are referenced by the copied file names. In
+  RTF, text is escaped so that it cannot become control words, groups or fields.
   If you find a way around this escaping, please report it as above.
 - **Large inputs.** MIF files and the output are processed in memory; there are no size
   limits.

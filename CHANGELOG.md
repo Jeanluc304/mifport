@@ -6,6 +6,19 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `mif2rtf`: MIF to RTF for Word and LibreOffice Writer. FrameMaker's paragraph and
+  character formats become styles of the same name, defined from the catalogs (fonts,
+  sizes, colours, alignment, indents, spacing, line spacing, tab stops); local overrides
+  are kept as direct formatting. Headings get outline levels and keep FrameMaker's
+  numbers; lists are Word lists; tables keep merged cells and repeating heading rows;
+  footnotes are Word footnotes; cross-references are links with `PAGEREF` fields; index
+  markers are `XE` fields; PNG and JPEG graphics are embedded; page size and margins are
+  set.
+- The colour catalog is read (CMYK and tints), and tab stops are part of the paragraph
+  formats.
+
 ## [0.2.0] - 2026-10-02
 
 ### Added
