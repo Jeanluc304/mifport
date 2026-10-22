@@ -185,8 +185,34 @@ FrameMaker's footnote format.
 **Every list has its own list definition.** Word continues numbering across paragraphs
 that share a list; FrameMaker restarts lists explicitly. One definition per list lets
 each start at its own number, and FrameMaker's indents (paragraph `\li`, `\fi`) override
-the list's default indents. Numbers are `1.` and bullets `•` for every list, because
-FrameMaker's number formats (`<a+>)`, `Step <n+>:`) have no reliable RTF equivalent.
+the list's default indents.
+
+**List numbers follow FrameMaker's format, as far as one counter goes.** The counter
+style (`<n>`, `<a>`, `<A>`, `<r>`, `<R>`), the text around it and whether a tab follows map
+directly onto a Word list level. Formats with several counters (`<n>.<n+>`) would need
+the parent list's number inside the child's definition; since every list has a
+definition of its own, only the last counter is kept. Bullets typed in a symbol font
+(`l` in Zapf Dingbats) are written as the Unicode symbol they show, because the symbol
+fonts are often missing on the reader's computer.
+
+**One section, headers and footers from three master pages.** FrameMaker can give every
+page any master page; RTF would need a section per change of master page, and sections
+make the document harder to edit. The left and right master pages cover almost every
+page; a title page with a master page of its own becomes Word's different first page
+(`\titlepg`). Other master pages only get a warning.
+
+**Running headers are `STYLEREF` fields.** `<$paratext[Chapter]>` shows the nearest
+paragraph of that format, and so does `STYLEREF "Chapter"`, because the RTF style has the
+FrameMaker tag's name. When no paragraph of that format is converted, the field is left
+out: Word would print an error message in the header.
+
+**Dates in headers stay fixed text.** FrameMaker's modification date is the MIF file's
+date, which a `SAVEDATE` field would not show; the text is filled in at conversion, as in
+the Markdown output.
+
+**The page numbering starts at FrameMaker's first page number.** `\pgnstarts` in the
+section; Word follows it, LibreOffice ignores it in the first section (it starts at 1), a
+known LibreOffice limitation.
 
 **Unicode as `\uN` with a hex fallback.** RTF is written as 7-bit ASCII. After `\uN` comes
 the fallback for old readers as a hex escape (`\'e9`, or `\'3f` for `?`), as Word writes

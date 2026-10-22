@@ -70,6 +70,25 @@ class Image:
     href: str = ''
 
 
+@dataclass
+class FieldCode:
+    """A value only a paginated document knows: 'page' (current page number), 'pages'
+    (number of pages) or 'styleref' (the text of the nearest paragraph with tag `arg`,
+    a running header). `text` is shown until the word processor updates it."""
+    kind: str
+    arg: str = ''
+    text: str = ''
+
+
+@dataclass
+class PageVariable:
+    """A FrameMaker variable that needs pages (page numbers, running headers): `parts`
+    are Text and FieldCode items. Only the RTF writer can show it; the Markdown and
+    AsciiDoc writers leave it out with a warning."""
+    name: str
+    parts: list
+
+
 # ---- blocks ----
 
 # `tag` on blocks is the FrameMaker paragraph tag the block came from. The Markdown and
@@ -108,11 +127,26 @@ class Quote:
 
 
 @dataclass
+class ListMarker:
+    """How FrameMaker numbers a list (from its PgfNumFormat): the counter style
+    ('decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman') or 'bullet',
+    the text around the number ('(' and ')' for '(a)'), the bullet character, whether a
+    tab follows, and the number's character format. Only the RTF writer uses it."""
+    style: str = 'decimal'
+    prefix: str = ''
+    suffix: str = '.'
+    bullet: str = '\N{BULLET}'
+    tab: bool = True
+    font: 'CharFormat' = None
+
+
+@dataclass
 class ListBlock:
     """A bulleted or numbered list. Each item is a list of blocks."""
     ordered: bool
     items: list
     start: int = 1
+    marker: ListMarker = None
 
 
 @dataclass
@@ -213,6 +247,27 @@ class CharFormat:
 
 
 @dataclass
+class PageLayout:
+    """Headers and footers from FrameMaker's master pages and the page numbering, for
+    the RTF writer. Headers and footers are lists of blocks, or None for none. `header`
+    and `footer` are for right pages (all pages in one-sided documents), `*_left` for
+    left pages of two-sided documents, `*_first` for the first page when it uses a master
+    page of its own (`first_page_own`). Distances in points: `header_top` from the top
+    edge to the header, `footer_bottom` from the footer to the bottom edge."""
+    header: list = None
+    footer: list = None
+    header_left: list = None
+    footer_left: list = None
+    header_first: list = None
+    footer_first: list = None
+    first_page_own: bool = False
+    header_top: float = 0.0
+    footer_bottom: float = 0.0
+    start: int = 1                 # number of the first page
+    number_style: str = 'decimal'  # decimal, lower-roman, upper-roman, lower-alpha, upper-alpha
+
+
+@dataclass
 class Document:
     title: list = None     # inlines, or None
     lang: str = ''         # BCP 47 language tag, e.g. 'de'
@@ -222,6 +277,7 @@ class Document:
     title_tag: str = ''
     formats: dict = field(default_factory=dict)        # paragraph tag -> ParaFormat
     char_formats: dict = field(default_factory=dict)   # character tag -> CharFormat
+    pages: PageLayout = None
 
 
 def plain(inlines):
@@ -266,3 +322,56 @@ def walk_images(blocks):
                 for c in row.cells:
                     if c:
                         yield from walk_images(c.blocks)
+
+
+def drop_page_variables(doc, warn):
+    """A copy of the document without PageVariables, for outputs without pages
+    (Markdown, AsciiDoc); each dropped variable is reported once."""
+    import copy
+    doc = copy.deepcopy(doc)
+
+    def inl(items):
+        if not any(isinstance(i, PageVariable) for i in items):
+            return [_inner(i) for i in items]
+        out = []
+        for i in items:
+            if isinstance(i, PageVariable):
+                warn(f'variable {i.name!r} (page numbers, running headers) has no meaning '
+                     'outside FrameMaker pages; left out')
+            else:
+                out.append(_inner(i))
+        # white space next to a dropped variable at the start or end goes too
+        if out and isinstance(out[0], Text):
+            out[0] = Text(out[0].text.lstrip(), out[0].style, out[0].ctag)
+        if out and isinstance(out[-1], Text):
+            out[-1] = Text(out[-1].text.rstrip(), out[-1].style, out[-1].ctag)
+        return [i for i in out if not isinstance(i, Text) or i.text]
+
+    def _inner(i):
+        if isinstance(i, Link):
+            i.children = inl(i.children)
+        elif isinstance(i, FootnoteRef):
+            i.blocks = blk(i.blocks)
+        return i
+
+    def blk(blocks):
+        for b in blocks:
+            if isinstance(b, (Heading, Paragraph)):
+                b.inlines = inl(b.inlines)
+            elif isinstance(b, Quote):
+                b.blocks = blk(b.blocks)
+            elif isinstance(b, ListBlock):
+                b.items = [blk(item) for item in b.items]
+            elif isinstance(b, Table):
+                if b.title is not None:
+                    b.title = inl(b.title)
+                for row in b.rows:
+                    for c in row.cells:
+                        if c:
+                            c.blocks = blk(c.blocks)
+        return blocks
+
+    if doc.title is not None:
+        doc.title = inl(doc.title)
+    doc.blocks = blk(doc.blocks)
+    return doc

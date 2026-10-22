@@ -151,9 +151,11 @@ structure is real Word structure:
   the text that uses them.
 - **Headings** get an outline level, so the navigation pane and an automatic table of
   contents work; FrameMaker's heading numbers ("2.1 ") are kept as text.
-- **Lists** are Word lists, nested as in FrameMaker, at FrameMaker's indents; numbered
-  lists start where FrameMaker's start. Numbers are written as `1.` and bullets as `•`,
-  whatever FrameMaker's own number format was.
+- **Lists** are Word lists, nested as in FrameMaker, at FrameMaker's indents, with
+  FrameMaker's number format: the counter style (`1`, `a`, `A`, `i`, `I`), the text around
+  it (`(a)`, `1.`, `[1]`), the bullet character (also bullets typed in Zapf Dingbats,
+  Wingdings or Symbol, shown as the Unicode symbol), the number's character format, and
+  whether a tab follows. Numbered lists start where FrameMaker's start.
 - **Tables** with column widths, repeating heading rows, merged cells and simple lines
   around every cell; **footnotes** as Word footnotes; **cross-references** as links with
   the page number as a `PAGEREF` field, which Word and Writer update; **index markers**
@@ -162,10 +164,21 @@ structure is real Word structure:
 - **Graphics** in PNG or JPEG are embedded in the RTF at their FrameMaker width; other
   formats become a placeholder text with a warning (convert them to PNG first).
 - **Page size and margins** come from the body pages.
+- **Headers and footers** come from the master pages: the text frames above and below
+  the body frame, with their paragraph formats and tab stops. Page numbers become `PAGE`
+  fields, the number of pages `NUMPAGES`, running headers (`<$paratext[Tag]>`) `STYLEREF`
+  fields that show the nearest heading. Two-sided documents get different left and right
+  headers and footers; a first page with a master page of its own (a title page) gets
+  that page's header and footer. The page numbering starts at FrameMaker's first page
+  number, in its style (`1`, `i`, `I`, `a`, `A`); page numbers and the number of pages
+  also work in the text.
 
-Not in the RTF: headers and footers (master pages), several text columns, FrameMaker's
-table rulings and shading, drawing objects, and FrameMaker's exact line and page breaks
-– Word and Writer lay out the text themselves.
+Not in the RTF: other master pages than the left, right and first-page ones (their pages
+get the left and right headers and footers), several text columns, FrameMaker's table
+rulings and shading, drawing objects (also on master pages), and FrameMaker's exact line
+and page breaks – Word and Writer lay out the text themselves. Multi-level numbers such
+as `1.2` in a list keep only their last part. LibreOffice starts the page numbering of
+the first section at 1 whatever the RTF says; Word follows it.
 
 ## Paragraph roles
 
@@ -180,7 +193,8 @@ The role of a tag comes from, in this order:
    `CellHeading`, `ColumnHead`, `BodyAfterHead`, `RunningHead`, `HeadingRunIn`, TOC and
    index formats …); `Code` and `Listing` are code;
    `Quote`, `Zitat` and `Extract` are quotes (the full rules are in `mifdoc/roles.py`);
-3. the autonumber format: a symbol such as `•\t` makes a bulleted list, a counter such as
+3. the autonumber format: a symbol such as `•\t` makes a bulleted list (also a letter in
+   a symbol font, such as `l` in Zapf Dingbats, which shows as ●), a counter such as
    `<n+>.\t` a numbered list (`<n=1>` starts a new list);
 4. the font: a monospaced font makes a code block;
 5. otherwise a normal paragraph.
@@ -254,7 +268,7 @@ The table shows the Markdown and AsciiDoc output; for RTF see
 | Imported graphics in anchored frames | Image, copied to `images/` | `image::` |
 | Autonumber text of other paragraphs ("Figure 3: ") | Kept as text | Kept as text |
 | User variables, dates, file name | Their text | Their text |
-| Page number and running header variables | Left out (warning) | same |
+| Page number and running header variables | Left out (warning); RTF: Word fields | same |
 | Hidden conditional text (also hidden by an active Boolean condition expression, and hidden table rows and columns) | Left out | Left out |
 | Tracked changes | As if all changes were accepted | same |
 | MIF 7 FrameRoman text | Decoded | Decoded |

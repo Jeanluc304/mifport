@@ -221,3 +221,52 @@ def numbering(numformat):
     if not counters and '<' not in f and len(f) <= 2 and not any(ch.isalnum() for ch in f):
         return 'bullet', None
     return None, None
+
+
+# A counter building block: <n>, <n+>, <n=3>, <a+>, <R+> ... (not a character format switch)
+COUNTER_BLOCK = re.compile(r'<([naArR])([+\-]|=\d+)?>')
+COUNTER_STYLE = {'n': 'decimal', 'a': 'lower-alpha', 'A': 'upper-alpha', 'r': 'lower-roman',
+                 'R': 'upper-roman'}
+# Bullets typed in a symbol font: the letter as typed -> the Unicode symbol it shows
+SYMBOL_BULLETS = {
+    'zapf': {'l': '\N{BLACK CIRCLE}', 'n': '\N{BLACK SQUARE}', 'u': '\N{BLACK DIAMOND}',
+             'm': '\N{SHADOWED WHITE CIRCLE}', 'o': '\N{LOWER RIGHT DROP-SHADOWED WHITE SQUARE}',
+             'q': '\N{LOWER RIGHT SHADOWED WHITE SQUARE}', 's': '\N{BLACK UP-POINTING TRIANGLE}',
+             'v': '\N{BLACK DIAMOND MINUS WHITE X}', 'H': '\N{BLACK STAR}', '4': '\N{CHECK MARK}'},
+    'wingdings': {'l': '\N{BLACK CIRCLE}', 'n': '\N{BLACK SQUARE}', 'q': '\N{BALLOT BOX}',
+                  'v': '\N{BLACK DIAMOND MINUS WHITE X}', 'Ø': '\N{THREE-D TOP-LIGHTED RIGHTWARDS ARROWHEAD}',
+                  'ü': '\N{CHECK MARK}', '§': '\N{BLACK SMALL SQUARE}'},
+    'symbol': {'·': '\N{BULLET}', '¨': '\N{BLACK CLUB SUIT}', 'à': '\N{LOZENGE}'},
+}
+
+
+def symbol_bullet(text, family):
+    """The Unicode symbol for a bullet typed in a symbol font (Zapf Dingbats 'l' is ●);
+    other text unchanged."""
+    f = (family or '').lower().replace(' ', '')
+    table = next((t for key, t in SYMBOL_BULLETS.items() if key in f), None)
+    return ''.join(table.get(ch, ch) for ch in text) if table else text
+
+
+def list_marker(numformat):
+    """How a list format numbers: (style, prefix, suffix, bullet, tab).
+
+    style is a COUNTER_STYLE value or 'bullet'. Only the last counter counts; the text
+    around it ('(' and ')') is the prefix and suffix. Building blocks such as <$chapnum>
+    and character format switches are left out.
+    """
+    f = SERIES.sub('', numformat or '').replace('\\t', '\t')
+    tab = '\t' in f
+    f = f.split('\t')[0]
+    building_block = '<$' in f   # e.g. <$chapnum>: its separator ('-') must not stay alone
+    f = re.sub(r'<\$[^>]*>', '', f)
+    counters = list(COUNTER_BLOCK.finditer(f))
+    if not counters:
+        text = re.sub(r'<[^<>]*>', '', f).strip()
+        return 'bullet', '', '', text or '\N{BULLET}', tab
+    c = counters[-1]
+
+    def clean(s):
+        return re.sub(r'<[^<>]*>', '', s)
+    prefix = clean(f[:c.start()]) if len(counters) == 1 and not building_block else ''
+    return COUNTER_STYLE[c.group(1)], prefix, clean(f[c.end():]), '', tab

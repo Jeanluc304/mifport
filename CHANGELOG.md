@@ -18,6 +18,17 @@ All notable changes to this project are listed here. The format follows
   set.
 - The colour catalog is read (CMYK and tints), and tab stops are part of the paragraph
   formats.
+- `mif2rtf`: headers and footers from the master pages (left and right pages, a first
+  page with its own master page), with page numbers, the number of pages and running
+  headers as Word fields; page numbering from FrameMaker's first page number and style.
+  Page variables in the text become fields too.
+- `mif2rtf`: lists keep FrameMaker's number format: counter style, the text around the
+  number, the bullet character and the number's character format.
+
+### Fixed
+
+- Bullets typed in a symbol font (`l` in Zapf Dingbats, `n` in Wingdings) are recognised
+  as bulleted lists; before, the letter appeared in front of plain paragraphs.
 
 ## [0.2.0] - 2026-10-02
 
