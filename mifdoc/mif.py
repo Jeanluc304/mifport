@@ -216,11 +216,15 @@ def parse(text, base_dir='.', warn=None):
     return root
 
 
+class BookFileError(ValueError):
+    """The file is a MIF book file, which only lists its chapter files."""
+
+
 def load(path, warn=None):
     """Read and parse a MIF file. Returns (root node, MIF version string)."""
     text = read_text(path, warn)
     if text.lstrip('\N{BYTE ORDER MARK}').startswith('<Book'):
-        raise ValueError(f'{path} is a MIF book file, which only lists its chapter files; '
+        raise BookFileError(f'{path} is a MIF book file, which only lists its chapter files; '
                          'convert each chapter file instead')
     if not text.lstrip('\N{BYTE ORDER MARK}').startswith('<MIFFile'):
         raise ValueError(f'{path} is not a MIF file (it does not start with <MIFFile)')

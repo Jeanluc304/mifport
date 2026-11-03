@@ -20,21 +20,25 @@ jobs:
   tests:
     # both texts must be non-empty: in GitHub expressions '' counts as false in a && b || c
     name: tests (Python ${{ matrix.python }}, ${{ matrix.tools && 'with pandoc and Asciidoctor' || 'Python only' }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       # pandoc and Asciidoctor are installed in one job only: their tests check the output
       # files, which are the same on every Python version (the expected-output tests run
-      # in every job), and downloading them is the slow part of a run
+      # in every job), and downloading them is the slow part of a run.
+      # Python 3.9 is not available for Ubuntu 26.04, so its job runs on Ubuntu 24.04.
       matrix:
         include:
           - python: '3.9'
             tools: false
+            os: ubuntu-24.04
           - python: '3.12'
             tools: true
+            os: ubuntu-latest
           - python: '3.x'
             tools: false
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -66,9 +70,12 @@ jobs:
         run: |
           mkdir -p ~/apt-archives/partial
           sudo apt-get update
+          # since Ubuntu 26.04 the asciidoctor-pdf command is in its own package
+          pdf=ruby-asciidoctor-pdf
+          if apt-cache show asciidoctor-pdf > /dev/null 2>&1; then pdf=asciidoctor-pdf; fi
           sudo apt-get install -y --no-install-recommends \
             -o Dir::Cache::Archives="$HOME/apt-archives" -o APT::Keep-Downloaded-Packages=true \
-            pandoc asciidoctor ruby-asciidoctor-pdf
+            pandoc asciidoctor "$pdf"
           sudo chown -R "$USER" ~/apt-archives
           ls ~/apt-archives/*.deb | wc -l
           pandoc --version | head -1

@@ -802,6 +802,90 @@ class RegressionTest(unittest.TestCase):
             self.assertTrue(any('MIFEncoding' in w for w in warnings))
 
 
+class FolderTest(unittest.TestCase):
+    """A folder as input: every .mif file in it is converted."""
+
+    def make_folder(self, tmp):
+        """in/a.mif, in/b.MIF, in/bad.mif, in/book.mif, in/notes.txt, in/sub/c.mif"""
+        folder = os.path.join(tmp, 'in')
+        os.makedirs(os.path.join(folder, 'sub'))
+        for name in ('a.mif', 'b.MIF', os.path.join('sub', 'c.mif')):
+            os.rename(write_mif(tmp, para(f"<String `text of {name}'>")), os.path.join(folder, name))
+        for name, text in (('bad.mif', 'no MIF'), ('book.mif', '<Book 2015>\n'), ('notes.txt', 'x')):
+            with open(os.path.join(folder, name), 'w') as f:
+                f.write(text)
+        return folder
+
+    def test_folder_next_to_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_folder(tmp)
+            p = run_cli('mif2rtf.py', '--style', folder)
+            self.assertEqual(p.returncode, 1)  # bad.mif failed, the others are still converted
+            self.assertEqual(sorted(os.listdir(folder)), ['a.mif', 'a.rtf', 'b.MIF', 'b.rtf',
+                             'bad.mif', 'book.mif', 'notes.txt', 'sub'])
+            with open(os.path.join(folder, 'b.rtf'), encoding='utf-8') as f:
+                self.assertIn('text of b.MIF', f.read())
+            self.assertIn('error: bad.mif: ', p.stderr)
+            self.assertIn('skipped book.mif', p.stderr)
+            self.assertIn('converted 2 of 3 files, skipped 1 book file; failed: bad.mif', p.stdout)
+            for name in ('a.mif', 'b.MIF'):  # each file warns again, with its name in front
+                self.assertIn(f'WARNING: {name}: --style', p.stderr)
+            self.assertNotIn('Traceback', p.stderr)
+
+    def test_recursive_into_output_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_folder(tmp)
+            os.remove(os.path.join(folder, 'bad.mif'))
+            out = os.path.join(tmp, 'out')
+            os.mkdir(out)
+            p = run_cli('mif2md.py', '-r', folder, out)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            found = sorted(os.path.relpath(os.path.join(d, f), out)
+                           for d, _, files in os.walk(out) for f in files)
+            self.assertEqual(found, ['a.md', 'b.md', os.path.join('sub', 'c.md')])
+            self.assertIn('converted 3 of 3 files', p.stdout)
+            self.assertFalse([f for f in os.listdir(folder) if f.endswith('.md')])
+
+    def test_same_output_twice(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, 'in')
+            os.mkdir(folder)
+            for name in ('x.MIF', 'x.mif'):
+                os.rename(write_mif(tmp, para(f"<String `{name}'>")), os.path.join(folder, name))
+            if len(os.listdir(folder)) < 2:
+                self.skipTest('file names are not case-sensitive here')
+            p = run_cli('mif2adoc.py', folder)
+            self.assertEqual(p.returncode, 1)
+            self.assertIn('error: x.mif: its output', p.stderr)
+            with open(os.path.join(folder, 'x.adoc'), encoding='utf-8') as f:
+                self.assertIn('x.MIF', f.read())
+
+    def test_list_tags_per_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_folder(tmp)
+            p = run_cli('mif2md.py', '--list-tags', '-r', folder)
+            for name in ('a.mif', 'b.MIF', os.path.join('sub', 'c.mif')):
+                self.assertIn(f'== {name} ==', p.stdout)
+            self.assertEqual(p.stdout.count('TAG '), 3)
+            self.assertNotIn('converted', p.stdout)
+            self.assertFalse([f for f in os.listdir(folder) if f.endswith('.md')])
+
+    def test_folder_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_folder(tmp)
+            p = run_cli('mif2rtf.py', os.path.join(folder, 'sub'), os.path.join(tmp, 'missing'))
+            self.assertIn('the output must be an existing folder', p.stderr)
+            empty = os.path.join(tmp, 'empty')
+            os.makedirs(os.path.join(empty, 'deeper'))
+            p = run_cli('mif2rtf.py', empty)
+            self.assertNotEqual(p.returncode, 0)
+            self.assertIn('no .mif files', p.stderr)
+            self.assertIn('--recursive', p.stderr)
+            p = run_cli('mif2rtf.py', os.path.join(folder, 'book.mif'))
+            self.assertIn('is a MIF book file', p.stderr)
+            self.assertNotIn('Traceback', p.stderr)
+
+
 class DumpTest(unittest.TestCase):
     def test_dump_shows_tags_and_structure(self):
         p = subprocess.run([sys.executable, os.path.join(ROOT, 'mif2md.py'), '--dump',

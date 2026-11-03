@@ -6,6 +6,15 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A folder as input: `mif2md`, `mif2adoc` and `mif2rtf` convert every `.mif` file in it,
+  next to each file or into an output folder; `-r`/`--recursive` includes the
+  subfolders. Warnings start with the file name; a file that fails is reported and the
+  others are still converted, with a summary at the end and exit status 1 if any failed.
+  `--list-tags` and `--dump` print one section per file. MIF book files in the folder are
+  skipped.
+
 ## [0.3.0] - 2026-10-22
 
 ### Added

@@ -9,6 +9,11 @@ Every feature that was left out or approximated prints one `WARNING:` line (each
 only once). Many surprises are explained there: a graphic that was not found, a hidden
 condition, a variable with page numbers, a frame with drawing objects.
 
+When you convert a folder, each warning starts with the name of the file it belongs to
+(`WARNING: chapter2.mif: ...`), and each file shows its warnings again. A file that cannot
+be converted prints `error: chapter2.mif: ...`; the other files are still converted, the
+last line names the failed ones, and the exit status is 1.
+
 ## Step 2: which side is wrong?
 
 ```
