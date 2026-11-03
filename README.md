@@ -72,10 +72,24 @@ The output name defaults to the input name with `.md`, `.adoc` or `.rtf`. The to
 one `WARNING:` line for every feature they had to leave out or approximate, then `wrote
 output.md`.
 
+The input can also be a folder. Then every `.mif` file in it is converted:
+
+```
+python3 mif2rtf.py chapters/              # writes chapters/*.rtf next to each MIF file
+python3 mif2rtf.py chapters/ out/         # writes out/*.rtf (out/ must exist)
+python3 mif2rtf.py -r chapters/ out/      # also the subfolders, repeated under out/
+```
+
+Warnings start with the file name. A file that fails is reported and the others are still
+converted; the last line says how many were converted and which failed, and the exit
+status is 1 if any failed. MIF book files are skipped, since their chapter files are
+converted on their own.
+
 | Option | Meaning |
 |---|---|
 | `--flavor pandoc` | (mif2md, default) Pandoc's Markdown, made for `pandoc → PDF` |
 | `--flavor gfm` | (mif2md) GitHub Flavored Markdown |
+| `-r`, `--recursive` | With a folder as input, also convert the MIF files in its subfolders |
 | `--map FILE` | Tag mapping file, see [Paragraph roles](#paragraph-roles) |
 | `--list-tags` | List the paragraph tags in the document with the role each one gets, then stop |
 | `--dump` | Print the document model – what the converter understood – then stop (see [docs/troubleshooting.md](docs/troubleshooting.md)) |

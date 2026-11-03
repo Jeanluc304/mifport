@@ -1,4 +1,4 @@
-"""Shared command line handling for mif2md and mif2adoc."""
+"""Shared command line handling for mif2md, mif2adoc and mif2rtf."""
 import argparse
 import filecmp
 import os
@@ -23,19 +23,38 @@ PANDOC_UNSUPPORTED = {'.eps', '.ps', '.ai', '.tif', '.tiff', '.bmp', '.wmf', '.e
 
 
 _warned = set()
+_prefix = ''
 
 
 def warn(msg):
-    """Print a warning once."""
+    """Print a warning once (once per file when a folder is converted)."""
+    msg = _prefix + msg
     if msg not in _warned:
         _warned.add(msg)
         print(f'WARNING: {msg}', file=sys.stderr)
 
 
+def _start_file(name):
+    """Begin a new file of a folder: warnings get its name in front and are shown again."""
+    global _prefix
+    _prefix = f'{name}: ' if name else ''
+    _warned.clear()
+
+
+class ConvertError(Exception):
+    """A problem with one input file, reported as `error: ...`."""
+
+
 def arguments(prog, description, ext, extra=None):
     p = argparse.ArgumentParser(prog=prog, description=description)
-    p.add_argument('input', help='MIF file (MIF 7.0 or newer)')
-    p.add_argument('output', nargs='?', help=f'output file (default: input name with {ext})')
+    p.add_argument('input', help='MIF file (MIF 7.0 or newer), or a folder: then every .mif '
+                   'file in it is converted')
+    p.add_argument('output', nargs='?', help=f'output file (default: input name with {ext}); '
+                   'with a folder as input, an existing output folder (default: next to each '
+                   'MIF file)')
+    p.add_argument('-r', '--recursive', action='store_true',
+                   help='with a folder as input, also convert the MIF files in its subfolders '
+                        '(and repeat the subfolders in the output folder)')
     p.add_argument('--map', metavar='FILE', help='JSON file mapping paragraph and character '
                    'tags to roles (see README)')
     p.add_argument('--image-dir', metavar='DIR', default='images',
@@ -56,16 +75,101 @@ def arguments(prog, description, ext, extra=None):
 
 
 def run(args, ext, make_writer, style_file=None):
-    """Read args.input, build the document, place graphics, write the output file.
+    """Convert args.input, a MIF file or a folder of MIF files.
 
     `style_file` is (file name suffix, function(style, name) -> text) for --style.
     """
     try:
-        root, version = mif.load(args.input, warn)
         mapping = Mapping(args.map)
     except (OSError, ValueError) as e:
         sys.exit(f'error: {e}')
-    builder = Builder(root, args.input, mapping, warn, pages=ext == '.rtf')
+    if os.path.isdir(args.input):
+        sys.exit(run_folder(args, ext, make_writer, style_file, mapping))
+    if args.recursive:
+        warn('--recursive only applies when the input is a folder')
+    try:
+        convert(args.input, args.output, args, ext, make_writer, style_file, mapping)
+    except (ConvertError, mif.BookFileError) as e:
+        sys.exit(f'error: {e}')
+
+
+def find_mif_files(folder, recursive):
+    """The .mif files in folder (and its subfolders), sorted; links to folders are not followed."""
+    found = []
+    for path, folders, files in os.walk(folder):
+        folders.sort()
+        found += [os.path.join(path, f) for f in sorted(files) if f.lower().endswith('.mif')]
+        if not recursive:
+            break
+    return found
+
+
+def run_folder(args, ext, make_writer, style_file, mapping):
+    """Convert every MIF file of the folder args.input. A file that fails is reported and
+    the others are still converted. Returns the exit status."""
+    folder = args.input
+    if args.output and not os.path.isdir(args.output):
+        return (f'error: with a folder as input, the output must be an existing folder: '
+                f'{args.output}')
+    files = find_mif_files(folder, args.recursive)
+    if not files:
+        return f'error: no .mif files in {folder}' + ('' if args.recursive else
+                                                     ' (use --recursive for its subfolders)')
+    report = args.list_tags or args.dump
+    done, failed, skipped, outputs = 0, [], [], {}
+    for path in files:
+        rel = os.path.relpath(path, folder)
+        _start_file(rel)
+        if args.output:
+            output = os.path.join(args.output, os.path.splitext(rel)[0] + ext)
+        else:
+            output = os.path.splitext(path)[0] + ext
+        if report:
+            print(f'{chr(10) if done or failed or skipped else ""}== {rel} ==')
+        else:
+            key = os.path.normcase(os.path.abspath(output))
+            if key in outputs:
+                print(f'error: {rel}: its output {output} is already written for {outputs[key]}',
+                      file=sys.stderr)
+                failed.append(rel)
+                continue
+            outputs[key] = rel
+        try:
+            if args.output and not report:
+                os.makedirs(os.path.dirname(output), exist_ok=True)
+            convert(path, output, args, ext, make_writer, style_file, mapping)
+            done += 1
+        except mif.BookFileError:
+            skipped.append(rel)
+            print(f'skipped {rel}: a MIF book file (its chapter files are converted on their own)',
+                  file=sys.stderr)
+        except (ConvertError, OSError) as e:
+            print(f'error: {rel}: {e}', file=sys.stderr)
+            failed.append(rel)
+        except Exception as e:  # a bug in the converter: report it, go on with the next file
+            print(f'error: {rel}: internal error ({type(e).__name__}: {e}); please report it',
+                  file=sys.stderr)
+            failed.append(rel)
+    _start_file('')
+    if not report:
+        total = len(files) - len(skipped)
+        summary = f'converted {done} of {total} file{"s" if total != 1 else ""}'
+        if skipped:
+            summary += f', skipped {len(skipped)} book file{"s" if len(skipped) != 1 else ""}'
+        print(summary + (f'; failed: {", ".join(failed)}' if failed else ''))
+    return 1 if failed else 0
+
+
+def convert(path, output, args, ext, make_writer, style_file, mapping):
+    """Read the MIF file `path`, build the document, place graphics, write `output`
+    (None: the input name with ext). Raises ConvertError."""
+    try:
+        root, version = mif.load(path, warn)
+    except mif.BookFileError:
+        raise
+    except (OSError, ValueError) as e:
+        raise ConvertError(e) from None
+    builder = Builder(root, path, mapping, warn, pages=ext == '.rtf')
     if args.list_tags:
         list_tags(builder)
         return
@@ -73,12 +177,12 @@ def run(args, ext, make_writer, style_file=None):
     if args.dump:
         print('\n'.join(dump(doc)))
         return
-    output = args.output or os.path.splitext(args.input)[0] + ext
-    if os.path.abspath(output) == os.path.abspath(args.input):
-        sys.exit('error: the output file would overwrite the MIF file')
+    output = output or os.path.splitext(path)[0] + ext
+    if os.path.abspath(output) == os.path.abspath(path):
+        raise ConvertError('the output file would overwrite the MIF file')
     out_dir = os.path.dirname(os.path.abspath(output))
     if not os.path.isdir(out_dir):
-        sys.exit(f'error: the folder for the output file does not exist: {out_dir}')
+        raise ConvertError(f'the folder for the output file does not exist: {out_dir}')
     if ext != '.rtf':  # RTF embeds its pictures
         place_images(doc, args, output, ext)
     text = make_writer().write(doc)
