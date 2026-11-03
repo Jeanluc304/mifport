@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-03
+
 ### Added
 
 - A folder as input: `mif2md`, `mif2adoc` and `mif2rtf` convert every `.mif` file in it,
@@ -14,6 +16,11 @@ All notable changes to this project are listed here. The format follows
   others are still converted, with a summary at the end and exit status 1 if any failed.
   `--list-tags` and `--dump` print one section per file. MIF book files in the folder are
   skipped.
+
+### Fixed
+
+- A MIF book file given as the input ends with an error message instead of a Python
+  traceback.
 
 ## [0.3.0] - 2026-10-22
 
@@ -90,7 +97,8 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Jeanluc304/mifport/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Jeanluc304/mifport/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Jeanluc304/mifport/releases/tag/v0.1.0
