@@ -1079,8 +1079,13 @@ class Builder:
             png = self.stored_graphic(ob, facets)
             if png is None:
                 return None
-            name = f'graphic-{hashlib.sha256(png).hexdigest()[:12]}.png'
-            return self.placed_image(ob, frame, frame_w, None, name, png)
+            # named after its data: the same name in every run, for --extract-eps
+            name = f"graphic-{hashlib.sha256(ob.str('FacetData').encode()).hexdigest()[:12]}.png"
+            img = self.placed_image(ob, frame, frame_w, None, name, png)
+            img.other_formats = ', '.join(sorted(set(facets) - {'FrameImage'}))
+            eps = ob.str('FacetEps')
+            img.eps = bytes.fromhex(eps) if eps else None
+            return img
         name = ''
         di = ob.str('ImportObFileDI')
         if di:
@@ -1114,16 +1119,10 @@ class Builder:
                       'FrameImage version can be converted')
             return None
         try:
-            png = to_png(bytes.fromhex(data))
+            return to_png(bytes.fromhex(data))
         except ValueError as e:
             self.warn(f'a FrameImage graphic stored inside the MIF file was left out: {e}')
             return None
-        others = sorted(set(facets) - {'FrameImage'})
-        if others:
-            self.warn(f'a graphic stored inside the MIF file was converted from its FrameImage '
-                      f'version, not from {", ".join(others)}; it can be a screen preview of '
-                      'lower quality')
-        return png
 
     def placed_image(self, ob, frame, frame_w, source, base, data=None):
         """The Image with its size and alternative text."""

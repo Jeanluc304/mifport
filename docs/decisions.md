@@ -93,7 +93,9 @@ stored in several formats (facets). FrameImage is a plain bitmap, which the stan
 library can turn into PNG (`frameimage.py`). `=EPSI` is PostScript and would need a
 PostScript interpreter, so a graphic without a FrameImage version is left out with a
 warning. Where the original was a vector graphic, the FrameImage can be a screen preview;
-the converter warns about that too. The parser takes the facet lines out first, because
+the converter warns about that too. For that case `--extract-eps` writes the EPSI data to a
+file and a PNG of the same name replaces the preview. Rendering it is left to the user:
+calling Ghostscript would mean starting another program, which the tools never do. The parser takes the facet lines out first, because
 their data can contain `<`, `>` and `` ` `` and would otherwise break the statement tree.
 
 **Anchor ids are made from the target's text** (`slug`: ASCII letters, digits, hyphens,

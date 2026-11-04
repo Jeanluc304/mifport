@@ -968,7 +968,7 @@ class FrameImageTest(unittest.TestCase):
         self.assertEqual(image.width_pt, 72)
         self.assertRegex(image.name, r'^graphic-[0-9a-f]{12}\.png$')
         self.assertEqual(m.plain(doc.blocks[2].inlines), 'after')
-        self.assertTrue(any('not from EPSI' in w for w in warnings), warnings)
+        self.assertEqual(image.other_formats, 'EPSI')
         out = RtfWriter(lambda s: None).write(doc)
         self.assertIn(r'\pngblip', out)
         self.assertIn(image.data.hex(), out)
@@ -998,9 +998,56 @@ class FrameImageTest(unittest.TestCase):
                     self.assertEqual(read_png(f.read())[5], [b'\x0f'])
             self.assertEqual(len(os.listdir(os.path.join(tmp, 'images'))), 1)
 
+    def test_extract_eps_and_replace_the_preview(self):
+        eps = '=EPSI\n&%v\n&%!PS-Adobe-2.0 EPSF-2.0\\n\n&%%BoundingBox: 0 0 18 18\\n\n&a\\\\b\\n\n'
+        frame = facet_frame(frameimage(8, 1, 1, b'\xf0\x00'), eps)
+        better = to_png(frameimage(16, 2, 1, b'\xff\xff\xff\xff'))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_mif(tmp, para('<AFrame 1>'), frame)
+            images = os.path.join(tmp, 'images')
+
+            p = run_cli('mif2rtf.py', path)  # without the option: only the RTF file
+            self.assertFalse(os.path.exists(images))
+            self.assertIn('--extract-eps gets the better version', p.stderr)
+
+            p = run_cli('mif2rtf.py', '--extract-eps', path)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn('wrote 1 EPS file', p.stdout)
+            name = os.listdir(images)[0]
+            self.assertRegex(name, r'^graphic-[0-9a-f]{12}\.eps$')
+            with open(os.path.join(images, name), 'rb') as f:
+                self.assertEqual(f.read(), b'%!PS-Adobe-2.0 EPSF-2.0\n%%BoundingBox: 0 0 18 18\na\\b\n')
+
+            png = os.path.join(images, name[:-4] + '.png')
+            with open(png, 'wb') as f:
+                f.write(better)
+            for script, ext in (('mif2rtf.py', '.rtf'), ('mif2md.py', '.md')):
+                p = run_cli(script, path)
+                self.assertEqual(p.returncode, 0, p.stderr)
+                self.assertNotIn('screen preview', p.stderr)
+            with open(os.path.join(tmp, 'x.rtf'), encoding='utf-8') as f:
+                self.assertIn(better.hex(), f.read())
+            with open(png, 'rb') as f:
+                self.assertEqual(f.read(), better)  # not overwritten by the preview
+
+            with open(png, 'wb') as f:
+                f.write(b'not a png')
+            p = run_cli('mif2rtf.py', path)
+            self.assertIn('is not a PNG file', p.stderr)
+            with open(os.path.join(tmp, 'x.rtf'), encoding='utf-8') as f:
+                self.assertIn(r'\pngblip', f.read())
+
+    def test_extract_eps_without_eps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_mif(tmp, para("<String `x'>"))
+            p = run_cli('mif2rtf.py', '--extract-eps', path)
+            self.assertIn('wrote 0 EPS files', p.stdout)
+            self.assertFalse(os.path.exists(os.path.join(tmp, 'images')))
+
     def test_facet_data_forms(self):
         self.assertEqual(mif.facet_bytes(['ab\\\\c', '\\xFF', '00\\x', 'd']), b'ab\\c\xff\x00d')
         self.assertEqual(mif.facet_bytes(['\\x0', '1\\x']), b'\x01')  # digits over two lines
+        self.assertEqual(mif.facet_bytes(['a\\n', 'b\\\\n\\r\\t']), b'a\nb\\n\r\t')
         self.assertIsNone(mif.facet_bytes(['\\xzz\\x']))
         self.assertIsNone(mif.facet_bytes(['\\x00']))  # never switched off
 
@@ -1244,12 +1291,15 @@ class RtfTest(unittest.TestCase):
                 self.assertRegex(gap, r'\\row\n\\pard\\plain[^\n]*\\par\n\\trowd')
                 self.assertNotIn('\\intbl', gap.split('\\row\n')[1].split('\\trowd')[0])
                 self.assertTrue(rtf_groups_balanced(out))
-        # a title is the paragraph between the tables: nothing is added
+        # a title above the second table: an empty line too, so that it does not touch the first
         title = "<TblTitle <TblTitleContent <Para <ParaLine <String `Caption'>>>>>"
         out, _, _ = self.rtf(para('<ATbl 1>') + para('<ATbl 2>'),
                              f'<Tbls {tbl(1)}{tbl(2, title=title)}>')
         self.assertNotIn(touching, out)
-        self.assertEqual(len(re.findall(r'\\row\n\\pard', out)), 1)
+        self.assertRegex(out, r'\\row\n\\pard[^\n]* \\par\n\\pard[^\n]*Caption')
+        # no empty line where the table does not follow a table
+        out, _, _ = self.rtf(para("<String `text'>", '<ATbl 2>'), f'<Tbls {tbl(2, title=title)}>')
+        self.assertNotRegex(out, r'\\pard[^\n]* \\par\n\\pard[^\n]*Caption')
 
     def test_table_title_with_and_without_tbltitle(self):
         """TblTitleContent can be in a TblTitle or directly in the Tbl."""

@@ -96,12 +96,17 @@ FACET = re.compile(r'^[ \t]*=(?!EndInset\b)(\S+)[^\n]*(?:\n|$)((?:[ \t]*&[^\n]*(
 FACET_DATA = re.compile(r'^[ \t]*(?:&|=EndInset\b)[^\n]*(?:\n|$)', re.M)
 
 
+FACET_ESCAPES = {'\\\\': b'\\', '\\n': b'\n', '\\r': b'\r', '\\t': b'\t'}
+FACET_STATEMENTS = {'FrameImage': 'FacetData', 'EPSI': 'FacetEps'}  # the data that is kept
+
+
 def facet_bytes(lines):
     """The bytes of a facet of unsigned bytes: text, with \\x switching hexadecimal on and
-    off and \\\\ for a backslash. Returns None if the data is not valid."""
+    off, and \\\\ and \\n and the like for single characters. Returns None if the data is not
+    valid."""
     out, digits, in_hex = bytearray(), [], False
     for line in lines:
-        for part in re.split(r'(\\x|\\\\)', line):
+        for part in re.split(r'(\\x|\\[\\nrt])', line):
             if part == '\\x':
                 if in_hex:
                     try:
@@ -113,20 +118,20 @@ def facet_bytes(lines):
             elif in_hex:
                 digits.append(part)
             else:
-                out += b'\\' if part == '\\\\' else part.encode('latin-1', 'replace')
+                out += FACET_ESCAPES.get(part) or part.encode('latin-1', 'replace')
     return None if in_hex else bytes(out)
 
 
 def facet_statement(match):
-    """<Facet `name'> for a facet; a FrameImage also keeps its data, as hexadecimal digits
-    in a <FacetData> statement (the other formats cannot be converted anyway)."""
+    """<Facet `name'> for a facet. FrameImage and EPSI also keep their data, as hexadecimal
+    digits in a statement of their own; nothing is done with the other formats."""
     name = match.group(1).replace("'", '')
     out = f"<Facet `{name}'>"
-    if name == 'FrameImage':
+    if name in FACET_STATEMENTS:
         lines = [line.strip()[1:] for line in match.group(2).splitlines()]
-        data = facet_bytes(line for line in lines if line != '%v')
+        data = facet_bytes(lines[1:] if lines[:1] == ['%v'] else lines)
         if data:
-            out += f"<FacetData `{data.hex()}'>"
+            out += f"<{FACET_STATEMENTS[name]} `{data.hex()}'>"
     return out + '\n'
 
 
