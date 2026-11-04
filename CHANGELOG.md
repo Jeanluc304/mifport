@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-04
+
 ### Added
 
 - Graphics stored inside the MIF file are converted from their `FrameImage` version to
@@ -113,7 +115,8 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Jeanluc304/mifport/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Jeanluc304/mifport/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Jeanluc304/mifport/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Jeanluc304/mifport/compare/v0.1.0...v0.2.0
