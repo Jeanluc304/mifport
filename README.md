@@ -288,13 +288,19 @@ The table shows the Markdown and AsciiDoc output; for RTF see
 | MIF 7 FrameRoman text | Decoded | Decoded |
 
 Not converted, with a warning: drawing objects (lines, rectangles, text lines), text
-frames and equations in frames, graphics copied into the document instead of linked to a
-file. A frame holding several graphics on top of each other is written as separate
+frames and equations in frames. A frame holding several graphics on top of each other is written as separate
 images, one below the other. Structured FrameMaker documents are converted from their
 paragraph formats; the element structure is ignored, banner text (the instructions in
 empty elements) is left out, and cross-references to elements stay plain text. Master and
 reference pages (headers, footers) are not part of the output. A MIF book file only lists
 its chapters: convert each chapter file.
+
+Graphics copied into the document instead of linked to a file are converted from their
+`FrameImage` version to PNG: embedded in RTF, written to the images folder for Markdown and
+AsciiDoc, also with `--no-copy-images`. Where the original was a vector graphic, that
+version can be a screen preview of lower quality, and a warning says so; linking the
+original file in FrameMaker gives the better result. Graphics without a `FrameImage`
+version are left out with a warning.
 
 Graphics are looked up as stored in the MIF (relative to the MIF file), then by file name
 next to the MIF and in a `Graphics/`, `graphics/` or `images/` folder there. The graphics
@@ -355,6 +361,7 @@ mifdoc/
   asciidoc.py   document model -> AsciiDoc
   rtf.py        document model -> RTF, with FrameMaker's formats as styles
   convert.py    shared command line handling, graphics copying
+  frameimage.py graphics stored in the MIF file (FrameImage) -> PNG
   dump.py       the document model as a readable tree (--dump)
   style.py      style files for pandoc and asciidoctor-pdf (--style)
 docs/           documentation for maintainers

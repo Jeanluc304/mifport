@@ -10,10 +10,12 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -21,6 +23,7 @@ sys.path.insert(0, ROOT)
 from mifdoc import mif, model as m  # noqa: E402
 from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
 from mifdoc.builder import Builder, split_index  # noqa: E402
+from mifdoc.frameimage import MAGIC, to_png  # noqa: E402
 from mifdoc.formats import list_marker, numbering, read_colors, symbol_bullet  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
 from mifdoc.roles import is_sub, tag_number, tag_role  # noqa: E402
@@ -884,6 +887,122 @@ class FolderTest(unittest.TestCase):
             p = run_cli('mif2rtf.py', os.path.join(folder, 'book.mif'))
             self.assertIn('is a MIF book file', p.stderr)
             self.assertNotIn('Traceback', p.stderr)
+
+
+def frameimage(width, height, depth, pixels, kind=1, colors=b''):
+    """FrameImage data as described in the MIF Reference."""
+    return struct.pack('>8I', MAGIC, width, height, depth, 0, kind, 2 if colors else 0,
+                       len(colors)) + colors + pixels
+
+
+def read_png(data):
+    """(width, height, bit depth, colour type, palette, rows without the filter byte)."""
+    assert data[:8] == b'\x89PNG\r\n\x1a\n'
+    i, chunks = 8, {}
+    while i < len(data):
+        size, kind = struct.unpack('>I4s', data[i:i + 8])
+        body = data[i + 8:i + 8 + size]
+        assert struct.unpack('>I', data[i + 8 + size:i + 12 + size])[0] == zlib.crc32(kind + body)
+        chunks[kind] = body
+        i += 12 + size
+    width, height, depth, color = struct.unpack('>IIBB', chunks[b'IHDR'][:10])
+    raw = zlib.decompress(chunks[b'IDAT'])
+    stride = len(raw) // height
+    assert all(raw[y * stride] == 0 for y in range(height))
+    return (width, height, depth, color, chunks.get(b'PLTE'),
+            [raw[y * stride + 1:(y + 1) * stride] for y in range(height)])
+
+
+def facet_frame(data, extra=''):
+    """An anchored frame holding `data` as a stored graphic, with hexadecimal facet lines."""
+    digits = data.hex()
+    lines = ''.join(f'&{digits[i:i + 64]}\n' for i in range(0, len(digits), 64))
+    return ("<AFrames <Frame <ID 1> <FrameType Below> <ShapeRect 0 0 100 100>\n"
+            " <ImportObject <ImportObFile `2.0 internal inset'>\n"
+            f"{extra}=FrameImage\n&%v\n&\\x\n{lines}&\\x\n=EndInset\n"
+            " <ShapeRect 0 0 72 36>>>>")
+
+
+class FrameImageTest(unittest.TestCase):
+    """Graphics stored inside the MIF file."""
+
+    def test_monochrome_rows_are_padded_and_one_is_black(self):
+        # 17 pixels are 3 bytes, padded to 4
+        png = to_png(frameimage(17, 2, 1, b'\xff\xff\x80\xee' + b'\x00\x00\x00\xee'))
+        width, height, depth, color, palette, rows = read_png(png)
+        self.assertEqual((width, height, depth, color, palette), (17, 2, 1, 0, None))
+        self.assertEqual(rows, [b'\x00\x00\x7f', b'\xff\xff\xff'])
+
+    def test_colour_map_is_all_red_then_green_then_blue(self):
+        red, green, blue = bytes(range(256)), bytes(256), bytes([9]) * 256
+        png = to_png(frameimage(3, 1, 8, b'\x05\x06\x07\xee', colors=red + green + blue))
+        _, _, depth, color, palette, rows = read_png(png)
+        self.assertEqual((depth, color), (8, 3))
+        self.assertEqual(palette[5 * 3:5 * 3 + 3], bytes([5, 0, 9]))
+        self.assertEqual(rows, [b'\x05\x06\x07'])
+
+    def test_run_length_encoding(self):
+        # 01, four times 55, one 80, two times 80, 02, 09
+        data = b'\x01\x80\x03\x55\x80\x00\x80\x01\x80\x02\x09'
+        png = to_png(frameimage(10, 1, 8, data, kind=2))
+        self.assertEqual(read_png(png)[5], [b'\x01\x55\x55\x55\x55\x80\x80\x80\x02\x09'])
+
+    def test_bad_data_is_refused(self):
+        good = frameimage(8, 1, 1, b'\xff\x00')
+        for data, message in ((good[:20], 'header'), (b'x' * 40, 'FrameImage number'),
+                              (frameimage(8, 1, 24, b'x' * 24), '24 bits'),
+                              (frameimage(8, 1, 1, b'x', kind=3), 'data type'),
+                              (frameimage(0, 1, 1, b''), 'size'),
+                              (frameimage(100000, 100000, 1, b''), 'size'),
+                              (frameimage(8, 2, 1, b'\xff\x00'), 'incomplete'),
+                              (frameimage(8, 2, 8, b'\x80', kind=2), 'ends early'),
+                              (frameimage(8, 2, 8, b'\x80\x05', kind=2), 'ends early')):
+            with self.subTest(message), self.assertRaisesRegex(ValueError, message):
+                to_png(data)
+
+    def test_in_a_document(self):
+        frame = facet_frame(frameimage(8, 1, 1, b'\xf0\x00'), '=EPSI\n&%v\n&<< a > `b\n')
+        doc, warnings = doc_from(para('<AFrame 1>') + para("<String `after'>"), frame)
+        image = doc.blocks[1].image
+        self.assertEqual(read_png(image.data)[5], [b'\x0f'])
+        self.assertEqual(image.width_pt, 72)
+        self.assertRegex(image.name, r'^graphic-[0-9a-f]{12}\.png$')
+        self.assertEqual(m.plain(doc.blocks[2].inlines), 'after')
+        self.assertTrue(any('not from EPSI' in w for w in warnings), warnings)
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertIn(r'\pngblip', out)
+        self.assertIn(image.data.hex(), out)
+
+    def test_no_warning_without_other_versions(self):
+        _, warnings = doc_from(para('<AFrame 1>'), facet_frame(frameimage(8, 1, 1, b'\xf0\x00')))
+        self.assertFalse([w for w in warnings if 'stored inside' in w])
+
+    def test_broken_graphics_are_left_out_with_a_warning(self):
+        for data, message in ((frameimage(8, 1, 24, b'x' * 24), '24 bits'), (b'nonsense', 'header')):
+            doc, warnings = doc_from(para('<AFrame 1>'), facet_frame(data))
+            self.assertFalse([b for b in doc.blocks if isinstance(b, m.ImageBlock)])
+            self.assertTrue(any(message in w for w in warnings), warnings)
+
+    def test_written_to_the_image_folder(self):
+        frame = facet_frame(frameimage(8, 1, 1, b'\xf0\x00'))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_mif(tmp, para('<AFrame 1>'), frame)
+            for script, ext, options in (('mif2md.py', '.md', []), ('mif2adoc.py', '.adoc', []),
+                                         ('mif2md.py', '.md', ['--no-copy-images'])):
+                p = run_cli(script, path, *options)
+                self.assertEqual(p.returncode, 0, p.stderr)
+                name = os.listdir(os.path.join(tmp, 'images'))[0]
+                with open(os.path.join(tmp, 'x' + ext), encoding='utf-8') as f:
+                    self.assertIn('images/' + name, f.read())
+                with open(os.path.join(tmp, 'images', name), 'rb') as f:
+                    self.assertEqual(read_png(f.read())[5], [b'\x0f'])
+            self.assertEqual(len(os.listdir(os.path.join(tmp, 'images'))), 1)
+
+    def test_facet_data_forms(self):
+        self.assertEqual(mif.facet_bytes(['ab\\\\c', '\\xFF', '00\\x', 'd']), b'ab\\c\xff\x00d')
+        self.assertEqual(mif.facet_bytes(['\\x0', '1\\x']), b'\x01')  # digits over two lines
+        self.assertIsNone(mif.facet_bytes(['\\xzz\\x']))
+        self.assertIsNone(mif.facet_bytes(['\\x00']))  # never switched off
 
 
 class DumpTest(unittest.TestCase):

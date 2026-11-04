@@ -60,7 +60,8 @@ class Image:
     """An imported graphic, inline or (inside an ImageBlock) on its own line.
 
     `source` is the file found on disk (None if missing), `name` the file name stored in
-    the MIF, `href` the path the writers use (set by the converter after copying).
+    the MIF, `href` the path the writers use (set by the converter after copying). A
+    graphic stored inside the MIF file has no file: `data` holds it as PNG.
     """
     source: str
     name: str
@@ -68,6 +69,7 @@ class Image:
     width_pct: int = 0     # width relative to the text column, 0 if unknown
     alt: str = ''
     href: str = ''
+    data: bytes = None
 
 
 @dataclass

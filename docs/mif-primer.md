@@ -270,7 +270,8 @@ data as *facets*: lines that start with `=` (the facet name, such as `=EPSI` or
 `=FrameImage`, and `=EndInset` at the end) and `&` (data). Facet lines are not
 statements and may contain any character, `<`, `>`, `` ` `` and `#` included, so
 `mif.strip_facets` removes them before tokenising and leaves one `<Facet `name'>` per
-facet. The converter does not extract these graphics; it warns with the facet names.
+facet, followed by `<FacetData `hex'>` for a `=FrameImage`. `frameimage.to_png` turns that
+bitmap into PNG; graphics without one are left out with a warning naming the facets.
 
 `ShapeRect` of a graphic is its size *before* rotation; `Angle` rotates it, so at 90 or
 270 degrees the width on the page is the `ShapeRect` height. Alternative text, if any, is

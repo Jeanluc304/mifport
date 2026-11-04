@@ -222,6 +222,12 @@ def place_images(doc, args, output, ext):
     copied = {}   # source path -> href
     names = set()
     for img in walk_images(doc.blocks):
+        if img.data:  # stored inside the MIF file; its name comes from its content
+            os.makedirs(img_dir, exist_ok=True)
+            with open(os.path.join(img_dir, img.name), 'wb') as f:
+                f.write(img.data)
+            img.href = args.image_dir.rstrip('/\\').replace(os.sep, '/') + '/' + img.name
+            continue
         if not img.source:
             img.href = img.name
             continue

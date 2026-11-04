@@ -632,8 +632,8 @@ class RtfWriter:
 
     def image(self, img):
         """An embedded picture (PNG or JPEG); other graphics become a placeholder text."""
-        kind = None
-        data = None
+        kind = r'\pngblip' if img.data else None
+        data = img.data
         if img.source and os.path.isfile(img.source):
             ext = os.path.splitext(img.source)[1].lower()
             kind = {'.png': r'\pngblip', '.jpg': r'\jpegblip', '.jpeg': r'\jpegblip'}.get(ext)

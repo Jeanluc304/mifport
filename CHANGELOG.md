@@ -6,6 +6,14 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Graphics stored inside the MIF file are converted from their `FrameImage` version to
+  PNG, in all three tools: embedded in RTF, written to the images folder for Markdown and
+  AsciiDoc. A warning says when the graphic also has another version such as EPSI, because
+  the FrameImage can then be a lower-quality preview. Graphics without a `FrameImage` are
+  still left out with a warning.
+
 ### Fixed
 
 - `mif2rtf`: tables that follow each other without a paragraph between them, such as
