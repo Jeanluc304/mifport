@@ -10,6 +10,9 @@ All notable changes to this project are listed here. The format follows
 
 - `mif2rtf`: tables that follow each other without a paragraph between them, such as
   tables anchored in empty paragraphs, stay separate tables instead of becoming one.
+- Table titles are also read when `TblTitleContent` is directly in the `Tbl`, without a
+  `TblTitle` around it; they were left out without a warning.
+- A cross-reference to a marker in a table title now has its target.
 
 ## [0.4.0] - 2026-11-03
 

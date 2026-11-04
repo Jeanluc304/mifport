@@ -978,15 +978,18 @@ class Builder:
         fmt, format_widths, hidden_cols = self.table_format(tbl)
         ncols = int(tbl.val('TblNumColumns', '0') or 0)
         widths = [length(w.value) for w in tbl.all('TblColumnWidth')] or format_widths
-        title, label = None, ''
+        title, label, anchors = None, '', []
         placement = fmt.get('TblTitlePlacement', 'InHeader')
-        content = tbl.get('TblTitle') and tbl.get('TblTitle').get('TblTitleContent')
+        # TblTitleContent is in a TblTitle (MIF Reference) or directly in the Tbl
+        content = (tbl.get('TblTitle') or tbl).get('TblTitleContent')
         if content is not None and placement != 'None':
             parts = []
             for para in content.all('Para'):  # not the title's footnotes, which are in Notes
                 props = self.formats.of(para)
                 label = label or (para.str('PgfNumString') or '').replace('\t', ' ').translate(PLAIN)
-                inlines = _strip([i for i in self.inlines(para, props, []) if not isinstance(i, m.Anchor)])
+                found = self.inlines(para, props, [])
+                anchors += [i.id for i in found if isinstance(i, m.Anchor)]  # cross-reference targets
+                inlines = _strip([i for i in found if not isinstance(i, m.Anchor)])
                 if inlines:
                     parts += ([m.Text(' ')] if parts else []) + inlines
             title = parts or None
@@ -1035,7 +1038,7 @@ class Builder:
         if len(widths) < ncols:
             widths = widths + [72.0] * (ncols - len(widths))
         widths = [w for c, w in enumerate(widths[:ncols]) if c not in hidden_cols]
-        return m.Table(widths, rows, title, label, title_below=placement == 'InFooter')
+        return m.Table(widths, rows, title, label, anchors, title_below=placement == 'InFooter')
 
     # ---------- graphics ----------
 
