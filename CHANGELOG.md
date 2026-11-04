@@ -6,6 +6,11 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `mif2rtf`: tables that follow each other without a paragraph between them, such as
+  tables anchored in empty paragraphs, stay separate tables instead of becoming one.
+
 ## [0.4.0] - 2026-11-03
 
 ### Added
