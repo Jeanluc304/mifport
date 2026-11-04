@@ -1105,6 +1105,41 @@ class RtfTest(unittest.TestCase):
         warnings = []
         return RtfWriter(warnings.append).write(doc), doc, warnings
 
+    def test_tables_in_a_row_stay_separate(self):
+        """Rows that touch are one table in RTF, so a paragraph must stand between tables."""
+        def tbl(n, rows=1, title=''):
+            return (f"<Tbl <TblID {n}> <TblTag `Format A'> <TblNumColumns 1> {title} <TblBody "
+                    + f"<Row {cell(f'cell{n}')}>" * rows + ">>")
+        touching = '\\row\n\\trowd'
+        cases = (
+            (para('<ATbl 1>') + para('<ATbl 2>'), 'anchored in empty paragraphs'),
+            (para('<ATbl 1>', '<ATbl 2>'), 'anchored in one paragraph'),
+        )
+        for body, name in cases:
+            with self.subTest(name):
+                out, doc, _ = self.rtf(body, f'<Tbls {tbl(1, 2)}{tbl(2, 3)}>')
+                self.assertEqual([type(b) for b in doc.blocks[1:]], [m.Table, m.Table])
+                self.assertEqual(out.count(touching), 1 + 2)  # only the rows inside each table
+                gap = out[out.rindex('cell1'):out.index('cell2')]
+                self.assertNotIn(touching, gap)
+                self.assertRegex(gap, r'\\row\n\\pard\\plain[^\n]*\\par\n\\trowd')
+                self.assertNotIn('\\intbl', gap.split('\\row\n')[1].split('\\trowd')[0])
+                self.assertTrue(rtf_groups_balanced(out))
+        # a title is the paragraph between the tables: nothing is added
+        title = "<TblTitle <TblTitleContent <Para <ParaLine <String `Caption'>>>>>"
+        out, _, _ = self.rtf(para('<ATbl 1>') + para('<ATbl 2>'),
+                             f'<Tbls {tbl(1)}{tbl(2, title=title)}>')
+        self.assertNotIn(touching, out)
+        self.assertEqual(len(re.findall(r'\\row\n\\pard', out)), 1)
+
+    def test_tables_in_a_row_inside_a_list_item_stay_separate(self):
+        tables = ''.join(f"<Tbl <TblID {n}> <TblTag `Format A'> <TblNumColumns 1> "
+                         f"<TblBody <Row {cell('x')}>>>" for n in (1, 2))
+        doc, _ = doc_from(para('<ATbl 1>') + para('<ATbl 2>'), f'<Tbls {tables}>', catalog=RTF_CATALOG)
+        doc.blocks = [m.ListBlock(False, [[m.Paragraph([m.Text('item')]), *doc.blocks[1:]]])]
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertNotIn('\\row\n\\trowd', out)
+
     def test_sample_is_valid_rtf_with_styles_and_structure(self):
         doc = build(os.path.join(SAMPLE, 'sample.mif'))
         out = RtfWriter(lambda s: None).write(doc)

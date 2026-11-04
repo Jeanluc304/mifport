@@ -330,8 +330,16 @@ class RtfWriter:
     def blocks(self, blocks, extra=''):
         out = []
         for b in blocks:
-            out.append(self.block(b, extra))
+            self.add(out, self.block(b, extra))
         return out
+
+    def add(self, out, text):
+        """Append a block to `out`. RTF has no mark for the end of a table: rows that follow
+        each other are one table, so a paragraph must stand between two tables."""
+        if out and text.startswith('\\trowd') and out[-1].endswith('\\row\n'):
+            out.append(self.pard('') + '\\par\n')
+        if text:
+            out.append(text)
 
     def block(self, b, extra=''):
         if isinstance(b, m.Heading):
@@ -393,9 +401,9 @@ class RtfWriter:
                     out.append(pard + self.inlines(b.inlines) + '\\par\n')
                     first = False
                 elif isinstance(b, m.ListBlock):
-                    out.append(self.list_block(b, depth + 1, extra))
+                    self.add(out, self.list_block(b, depth + 1, extra))
                 else:
-                    out.append(self.block(b, extra))
+                    self.add(out, self.block(b, extra))
                     first = False
         return ''.join(out)
 
