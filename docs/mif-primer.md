@@ -243,7 +243,8 @@ counts for the straddles around it. Columns can be conditional too: in the table
 numbered from 0). Hidden columns are left out, and cells merged across them get narrower.
 
 The table title's paragraphs are in `TblTitleContent`, after a `Notes` block with the
-title's own footnotes. Whether and where the title is shown is the format property
+title's own footnotes. Some files have `TblTitleContent` directly in the `Tbl`, without the
+`TblTitle` around it; both forms are read. Whether and where the title is shown is the format property
 `TblTitlePlacement` (`InHeader`, `InFooter`, `None`). Format properties come from the
 catalog format named by `TblTag` (in `TblCatalog`), overridden by a `TblFormat` inside the
 `Tbl` (`Builder.table_format`).

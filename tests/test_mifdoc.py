@@ -1132,6 +1132,24 @@ class RtfTest(unittest.TestCase):
         self.assertNotIn(touching, out)
         self.assertEqual(len(re.findall(r'\\row\n\\pard', out)), 1)
 
+    def test_table_title_with_and_without_tbltitle(self):
+        """TblTitleContent can be in a TblTitle or directly in the Tbl."""
+        marker = "<Marker <MType 9> <MText `77: Cap: Table 1'>>"
+        content = ("<TblTitleContent <Notes > <Para <PgfNumString `Table 1: '> "
+                   f"<ParaLine {marker} <String `Caption'>>>>")
+        ref = "<XRef <XRefName `x'> <XRefSrcText `77: Cap: Table 1'>> <String `see'> <XRefEnd>"
+        for title in (f'<TblTitle {content}>', content):
+            with self.subTest(title[:12]):
+                tables = table_mif(f"<Row {cell('c')}>", 1, title)
+                out, doc, _ = self.rtf(para('<ATbl 1>') + para(ref), tables)
+                table = doc.blocks[1]
+                self.assertEqual((table.label, m.plain(table.title)), ('Table 1: ', 'Caption'))
+                self.assertEqual(len(table.anchors), 1)
+                self.assertIn('Table 1: Caption', out)
+                link = [i for i in doc.blocks[2].inlines if isinstance(i, m.Link)][0]
+                self.assertEqual(link.target, table.anchors[0])
+                self.assertIn(r'\bkmkstart', out)
+
     def test_tables_in_a_row_inside_a_list_item_stay_separate(self):
         tables = ''.join(f"<Tbl <TblID {n}> <TblTag `Format A'> <TblNumColumns 1> "
                          f"<TblBody <Row {cell('x')}>>>" for n in (1, 2))
