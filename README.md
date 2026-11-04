@@ -91,6 +91,7 @@ converted on their own.
 | `--flavor gfm` | (mif2md) GitHub Flavored Markdown |
 | `-r`, `--recursive` | With a folder as input, also convert the MIF files in its subfolders |
 | `--map FILE` | Tag mapping file, see [Paragraph roles](#paragraph-roles) |
+| `--extract-eps` | Also write the EPS version of graphics stored in the MIF file, see [Graphics](#graphics-stored-in-the-mif-file) |
 | `--list-tags` | List the paragraph tags in the document with the role each one gets, then stop |
 | `--dump` | Print the document model – what the converter understood – then stop (see [docs/troubleshooting.md](docs/troubleshooting.md)) |
 | `--style` | Also write a style file with the page size, margins and formats of the MIF file: a pandoc defaults file (`mif2md`, pandoc flavour) or an asciidoctor-pdf theme (`mif2adoc`); see [docs/styling.md](docs/styling.md) |
@@ -298,9 +299,23 @@ its chapters: convert each chapter file.
 Graphics copied into the document instead of linked to a file are converted from their
 `FrameImage` version to PNG: embedded in RTF, written to the images folder for Markdown and
 AsciiDoc, also with `--no-copy-images`. Where the original was a vector graphic, that
-version can be a screen preview of lower quality, and a warning says so; linking the
-original file in FrameMaker gives the better result. Graphics without a `FrameImage`
-version are left out with a warning.
+version can be a screen preview of lower quality, and a warning says so. Graphics without
+a `FrameImage` version are left out with a warning.
+
+### Graphics stored in the MIF file
+
+If such a graphic is too coarse, link the original file in FrameMaker. If you no longer
+have the original, use the EPS version stored in the MIF file:
+
+1. Run the tool with `--extract-eps`. It writes `graphic-<id>.eps` files to the image
+   folder (`images` next to the output; change it with `--image-dir`).
+2. Open a file in a program that reads EPS (GIMP with Ghostscript support, Inkscape,
+   Illustrator) at a good resolution, such as 300 dpi, and export it as a PNG of the same
+   name in the same folder.
+3. Run the tool again. It uses every `graphic-<id>.png` it finds there instead of the
+   preview, at the size the graphic has in FrameMaker.
+
+The tools do not start such a program themselves; see [SECURITY.md](SECURITY.md).
 
 Graphics are looked up as stored in the MIF (relative to the MIF file), then by file name
 next to the MIF and in a `Graphics/`, `graphics/` or `images/` folder there. The graphics

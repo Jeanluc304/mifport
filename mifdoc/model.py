@@ -61,7 +61,8 @@ class Image:
 
     `source` is the file found on disk (None if missing), `name` the file name stored in
     the MIF, `href` the path the writers use (set by the converter after copying). A
-    graphic stored inside the MIF file has no file: `data` holds it as PNG.
+    graphic stored inside the MIF file has no file: `data` holds it as PNG, `other_formats`
+    names its better versions, if any, and `eps` holds its EPSI version, if any.
     """
     source: str
     name: str
@@ -70,6 +71,8 @@ class Image:
     alt: str = ''
     href: str = ''
     data: bytes = None
+    other_formats: str = ''
+    eps: bytes = None
 
 
 @dataclass

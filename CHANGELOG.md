@@ -6,6 +6,17 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `--extract-eps`: writes the EPS version of graphics stored inside the MIF file to the
+  image folder. A PNG of the same name there replaces the graphic, in every run, for
+  graphics whose FrameImage version is only a coarse preview.
+
+### Changed
+
+- `mif2rtf`: a table with a title that follows another table now has an empty line above
+  its title, like tables without a title, instead of touching the table above.
+
 ## [0.5.0] - 2026-11-04
 
 ### Added

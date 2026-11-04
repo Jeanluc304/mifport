@@ -18,6 +18,7 @@ PANDOC_IMAGE_NOTES = {
     '.svg': 'SVG graphics: pandoc needs rsvg-convert (package librsvg2-bin) to make a PDF; '
             'without it the PDF conversion fails',
 }
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 PANDOC_UNSUPPORTED = {'.eps', '.ps', '.ai', '.tif', '.tiff', '.bmp', '.wmf', '.emf', '.cgm',
                       '.pict', '.pct', '.gif', '.psd'}
 
@@ -61,6 +62,9 @@ def arguments(prog, description, ext, extra=None):
                    help='folder for copied graphics, relative to the output file (default: images)')
     p.add_argument('--no-copy-images', action='store_true',
                    help='link graphics where they are instead of copying them')
+    p.add_argument('--extract-eps', action='store_true',
+                   help='also write the EPS version of graphics stored in the MIF file to the '
+                        'image folder; a PNG of the same name there replaces the graphic')
     p.add_argument('--list-tags', action='store_true',
                    help='list the paragraph tags of the document with their roles, then stop')
     p.add_argument('--dump', action='store_true',
@@ -183,6 +187,7 @@ def convert(path, output, args, ext, make_writer, style_file, mapping):
     out_dir = os.path.dirname(os.path.abspath(output))
     if not os.path.isdir(out_dir):
         raise ConvertError(f'the folder for the output file does not exist: {out_dir}')
+    stored_graphics(doc, args, output)
     if ext != '.rtf':  # RTF embeds its pictures
         place_images(doc, args, output, ext)
     text = make_writer().write(doc)
@@ -214,6 +219,39 @@ def list_tags(builder):
         print(f'{tag.ljust(width)}{n:>6}  {role}')
 
 
+def stored_graphics(doc, args, output):
+    """Graphics stored in the MIF file: use a PNG of the same name from the image folder if
+    there is one (made by the user from the EPS file), and write the EPS files if asked."""
+    img_dir = os.path.join(os.path.dirname(os.path.abspath(output)), args.image_dir)
+    written = set()
+    for img in walk_images(doc.blocks):
+        if not img.data:
+            continue
+        replaced = False
+        path = os.path.join(img_dir, img.name)
+        if os.path.isfile(path):
+            with open(path, 'rb') as f:
+                data = f.read()
+            if data[:8] == PNG_SIGNATURE:
+                replaced = data != img.data
+                img.data = data
+            else:
+                warn(f'{path} is not a PNG file; not used')
+        if args.extract_eps and img.eps:
+            eps = os.path.splitext(path)[0] + '.eps'
+            os.makedirs(img_dir, exist_ok=True)
+            with open(eps, 'wb') as f:
+                f.write(img.eps)
+            written.add(eps)
+        if img.other_formats and not replaced:
+            hint = '; --extract-eps gets the better version' if img.eps else ''
+            warn(f'a graphic stored inside the MIF file was converted from its FrameImage version, '
+                 f'not from {img.other_formats}; it can be a screen preview of lower quality{hint}')
+    if args.extract_eps:
+        print(f'wrote {len(written)} EPS file{"" if len(written) == 1 else "s"}'
+              + (f' to {img_dir}' if written else ''))
+
+
 def place_images(doc, args, output, ext):
     """Copy graphics next to the output (or link them where they are) and set each
     Image.href to the path the output file should use."""
@@ -224,8 +262,10 @@ def place_images(doc, args, output, ext):
     for img in walk_images(doc.blocks):
         if img.data:  # stored inside the MIF file; its name comes from its content
             os.makedirs(img_dir, exist_ok=True)
-            with open(os.path.join(img_dir, img.name), 'wb') as f:
-                f.write(img.data)
+            path = os.path.join(img_dir, img.name)
+            if not os.path.exists(path):  # it can be the user's better version
+                with open(path, 'wb') as f:
+                    f.write(img.data)
             img.href = args.image_dir.rstrip('/\\').replace(os.sep, '/') + '/' + img.name
             continue
         if not img.source:

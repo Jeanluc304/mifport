@@ -329,14 +329,19 @@ class RtfWriter:
 
     def blocks(self, blocks, extra=''):
         out = []
+        previous = None
         for b in blocks:
-            self.add(out, self.block(b, extra))
+            self.add(out, self.block(b, extra), b, previous, extra)
+            previous = b
         return out
 
-    def add(self, out, text):
-        """Append a block to `out`. RTF has no mark for the end of a table: rows that follow
-        each other are one table, so a paragraph must stand between two tables."""
-        if out and text.startswith('\\trowd') and out[-1].endswith('\\row\n'):
+    def add(self, out, text, b, previous, extra):
+        """Append the text of block `b` to `out`. RTF has no mark for the end of a table: rows
+        that follow each other are one table, so a paragraph must stand between two tables.
+        A table with a title gets one as well, or the title would touch the table above."""
+        titled = isinstance(b, m.Table) and (b.title is not None or b.label)
+        rows_touch = text.startswith('\\trowd') and out and out[-1].endswith('\\row\n')
+        if not extra and (rows_touch or (titled and isinstance(previous, m.Table))):
             out.append(self.pard('') + '\\par\n')
         if text:
             out.append(text)
@@ -390,6 +395,7 @@ class RtfWriter:
         out = []
         for item in lst.items:
             first = True
+            previous = None
             for b in item:
                 if first and isinstance(b, m.Paragraph):
                     tag = b.tag
@@ -401,10 +407,11 @@ class RtfWriter:
                     out.append(pard + self.inlines(b.inlines) + '\\par\n')
                     first = False
                 elif isinstance(b, m.ListBlock):
-                    self.add(out, self.list_block(b, depth + 1, extra))
+                    self.add(out, self.list_block(b, depth + 1, extra), b, previous, extra)
                 else:
-                    self.add(out, self.block(b, extra))
+                    self.add(out, self.block(b, extra), b, previous, extra)
                     first = False
+                previous = b
         return ''.join(out)
 
     def list_tables(self):
