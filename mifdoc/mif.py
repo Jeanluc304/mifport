@@ -92,16 +92,49 @@ class Tok(str):
 # Graphics copied into a document are stored as facets: lines starting with "=" (a facet
 # name, "=EndInset" at the end) and "&" (data, which may contain any character, < > ` #
 # included). They are not statements and must not reach the tokeniser.
-FACET_NAME = re.compile(r'^[ \t]*=(?!EndInset\b)(\S+)[^\n]*$', re.M)
+FACET = re.compile(r'^[ \t]*=(?!EndInset\b)(\S+)[^\n]*(?:\n|$)((?:[ \t]*&[^\n]*(?:\n|$))*)', re.M)
 FACET_DATA = re.compile(r'^[ \t]*(?:&|=EndInset\b)[^\n]*(?:\n|$)', re.M)
+
+
+def facet_bytes(lines):
+    """The bytes of a facet of unsigned bytes: text, with \\x switching hexadecimal on and
+    off and \\\\ for a backslash. Returns None if the data is not valid."""
+    out, digits, in_hex = bytearray(), [], False
+    for line in lines:
+        for part in re.split(r'(\\x|\\\\)', line):
+            if part == '\\x':
+                if in_hex:
+                    try:
+                        out += bytes.fromhex(''.join(digits))
+                    except ValueError:
+                        return None
+                    digits = []
+                in_hex = not in_hex
+            elif in_hex:
+                digits.append(part)
+            else:
+                out += b'\\' if part == '\\\\' else part.encode('latin-1', 'replace')
+    return None if in_hex else bytes(out)
+
+
+def facet_statement(match):
+    """<Facet `name'> for a facet; a FrameImage also keeps its data, as hexadecimal digits
+    in a <FacetData> statement (the other formats cannot be converted anyway)."""
+    name = match.group(1).replace("'", '')
+    out = f"<Facet `{name}'>"
+    if name == 'FrameImage':
+        lines = [line.strip()[1:] for line in match.group(2).splitlines()]
+        data = facet_bytes(line for line in lines if line != '%v')
+        if data:
+            out += f"<FacetData `{data.hex()}'>"
+    return out + '\n'
 
 
 def strip_facets(text):
     """Replace facet data by one <Facet `name'> statement per facet."""
     if '\n=' not in text and '\n&' not in text and not re.search(r'\n[ \t]+[=&]', text):
         return text
-    text = FACET_DATA.sub('', text)
-    return FACET_NAME.sub(lambda m: "<Facet `" + m.group(1).replace("'", '') + "'>", text)
+    return FACET_DATA.sub('', FACET.sub(facet_statement, text))
 
 
 # Macro statements: `define (name, replacement)` and `include (pathname)`, written without

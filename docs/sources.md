@@ -43,6 +43,7 @@ by Adobe.
 | Anchored frames, `FrameType`, `ShapeRect`, `Angle` | MIF Ref: Graphic objects and graphic frames |
 | `ImportObject`, `ImportObFileDI` paths, `ImportURL` | MIF Ref: Graphic objects and graphic frames; MIF statement syntax (Device-independent pathnames) |
 | Graphics copied into the document (facets, `2.0 internal inset`) | MIF Ref: Facets for imported graphics |
+| `=FrameImage` data: header, colour map, run-length encoding, padding | MIF Ref: FrameImage Facet Format |
 | Alternative text as an object attribute of the anchored frame | User Guide: Add object attributes for tagged PDF; MIF Ref: Graphic objects and graphic frames (`ObjectAttribute` statement) |
 | Banner text, cross-references to elements | MIF Ref: Banner text; Cross-references (`XRefSrcIsElem` statement) |
 

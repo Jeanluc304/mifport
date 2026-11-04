@@ -96,7 +96,7 @@ unknown source like any other untrusted document:
   RTF, text is escaped so that it cannot become control words, groups or fields.
   If you find a way around this escaping, please report it as above.
 - **Large inputs.** MIF files and the output are processed in memory; there are no size
-  limits.
+  limits, except that a graphic stored in a MIF file may have at most 100 million pixels.
 
 Convert untrusted files in a folder or container that holds nothing private, and check
 the `images/` folder before you publish the output.

@@ -5,6 +5,7 @@ paragraph is (heading, list item, code ...), character formatting, tables, footn
 cross-references, anchored graphics, variables and conditional text.
 """
 import datetime
+import hashlib
 import os
 import re
 import unicodedata
@@ -14,6 +15,7 @@ from dataclasses import replace
 from . import model as m
 from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, length, lengths,
                       COUNTER_BLOCK, SERIES, list_marker, numbering, symbol_bullet)
+from .frameimage import to_png
 from .mif import Node
 from .roles import Mapping, is_sub, tag_number, tag_role
 
@@ -1071,13 +1073,14 @@ class Builder:
                 after.append(m.ImageBlock(img))
 
     def image(self, ob, frame, frame_w):
-        """An Image for an ImportObject, or None for a graphic copied into the document."""
+        """An Image for an ImportObject, or None if there is nothing to show."""
         facets = [c.text for c in ob.all('Facet')]
         if facets or 'internal inset' in (ob.str('ImportObFile') or ''):
-            kinds = ', '.join(sorted(set(facets))) or 'unknown format'
-            self.warn(f'a graphic stored inside the MIF file ({kinds}) was left out; only graphics '
-                      'linked to a file are converted')
-            return None
+            png = self.stored_graphic(ob, facets)
+            if png is None:
+                return None
+            name = f'graphic-{hashlib.sha256(png).hexdigest()[:12]}.png'
+            return self.placed_image(ob, frame, frame_w, None, name, png)
         name = ''
         di = ob.str('ImportObFileDI')
         if di:
@@ -1100,6 +1103,30 @@ class Builder:
         source = next((c for c in candidates if os.path.isfile(c)), None)
         if source is None:
             self.warn(f'graphic not found: {name}')
+        return self.placed_image(ob, frame, frame_w, source, base)
+
+    def stored_graphic(self, ob, facets):
+        """PNG data of a graphic stored inside the MIF file, or None with a warning."""
+        kinds = ', '.join(sorted(set(facets))) or 'unknown format'
+        data = ob.str('FacetData')
+        if not data:
+            self.warn(f'a graphic stored inside the MIF file ({kinds}) was left out; only its '
+                      'FrameImage version can be converted')
+            return None
+        try:
+            png = to_png(bytes.fromhex(data))
+        except ValueError as e:
+            self.warn(f'a FrameImage graphic stored inside the MIF file was left out: {e}')
+            return None
+        others = sorted(set(facets) - {'FrameImage'})
+        if others:
+            self.warn(f'a graphic stored inside the MIF file was converted from its FrameImage '
+                      f'version, not from {", ".join(others)}; it can be a screen preview of '
+                      'lower quality')
+        return png
+
+    def placed_image(self, ob, frame, frame_w, source, base, data=None):
+        """The Image with its size and alternative text."""
         # ShapeRect is the size before rotation: a graphic turned by 90 or 270 degrees is
         # as wide as its ShapeRect is high
         rect = lengths(ob.val('ShapeRect')) + [0, 0, 0, 0]
@@ -1113,7 +1140,7 @@ class Builder:
                 if not alt and attr.str('Tag', '').strip().lower() in ALT_TAGS:
                     alt = attr.str('Value', '').strip()
         pct = min(100, round(100 * w / self.column_width)) if w and self.column_width else 0
-        return m.Image(source, base, w, pct, alt)
+        return m.Image(source, base, w, pct, alt, data=data)
 
 
 def font_style(props):

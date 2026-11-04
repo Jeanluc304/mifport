@@ -88,10 +88,13 @@ a converted document should read as the final text.
 reference calls the numbers of custom types arbitrary. The standard names (`Index`,
 `Cross-Ref`) decide; the number is only a fallback, for example for localised names.
 
-**Copied-in graphics are dropped with a warning.** Their facet data (`=EPSI`,
-`=FrameImage` …) is in FrameMaker's own formats; decoding them would need more than the
-standard library. The parser removes the facet lines first, because their data can
-contain `<`, `>` and `` ` `` and would otherwise break the statement tree.
+**Copied-in graphics are converted from their FrameImage version.** A graphic can be
+stored in several formats (facets). FrameImage is a plain bitmap, which the standard
+library can turn into PNG (`frameimage.py`). `=EPSI` is PostScript and would need a
+PostScript interpreter, so a graphic without a FrameImage version is left out with a
+warning. Where the original was a vector graphic, the FrameImage can be a screen preview;
+the converter warns about that too. The parser takes the facet lines out first, because
+their data can contain `<`, `>` and `` ` `` and would otherwise break the statement tree.
 
 **Anchor ids are made from the target's text** (`slug`: ASCII letters, digits, hyphens,
 starting with a letter). Readable links, and valid in HTML, LaTeX and AsciiDoc.
