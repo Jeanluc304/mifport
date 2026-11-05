@@ -22,7 +22,7 @@ sys.path.insert(0, ROOT)
 
 from mifdoc import mif, model as m  # noqa: E402
 from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
-from mifdoc.builder import Builder, split_index  # noqa: E402
+from mifdoc.builder import Builder, drawing_name, split_index  # noqa: E402
 from mifdoc.dump import dump  # noqa: E402
 from mifdoc.frameimage import MAGIC, to_png  # noqa: E402
 from mifdoc.formats import list_marker, numbering, read_colors, symbol_bullet  # noqa: E402
@@ -956,6 +956,73 @@ def facet_frame(data, extra=''):
             " <ImportObject <ImportObFile `2.0 internal inset'>\n"
             f"{extra}=FrameImage\n&%v\n&\\x\n{lines}&\\x\n=EndInset\n"
             " <ShapeRect 0 0 72 36>>>>")
+
+
+class DrawnFrameTest(unittest.TestCase):
+    """Frames with drawing objects: a PNG from the image folder can replace them."""
+
+    FRAME = ("<AFrames <Frame <ID 1> <FrameType Below> <ShapeRect 0 0 100 50>"
+             " <Rectangle <ID 7> <Unique 11> <ShapeRect 0 0 80 40>>"
+             " <TextLine <ID 8> <Unique 12> <String `Box one'>> %s>>")
+
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder)
+        self.mif = write_mif(self.folder, para('<AFrame 1>'), self.FRAME % '')
+        self.images = os.path.join(self.folder, 'images')
+
+    def name(self, warning):
+        return re.search(r'drawing-[0-9a-f]{12}\.png', warning).group()
+
+    def picture(self, name, data=None):
+        os.makedirs(self.images, exist_ok=True)
+        with open(os.path.join(self.images, name), 'wb') as f:
+            f.write(data or to_png(frameimage(8, 4, 1, b'\x00\xee' * 4)))
+
+    def test_warning_names_the_file_and_the_first_text(self):
+        p = run_cli('mif2rtf.py', self.mif)
+        self.assertIn('was left out', p.stderr)
+        self.assertIn("'Box one'", p.stderr)
+        self.name(p.stderr)
+        with open(self.mif[:-4] + '.rtf', encoding='utf-8') as f:
+            self.assertNotIn('\\pict', f.read())
+
+    def test_picture_replaces_the_frame_at_its_width(self):
+        self.picture(self.name(run_cli('mif2rtf.py', self.mif).stderr))
+        p = run_cli('mif2rtf.py', self.mif)
+        self.assertNotIn('left out', p.stderr)
+        with open(self.mif[:-4] + '.rtf', encoding='utf-8') as f:
+            text = f.read()
+        self.assertIn('\\pngblip', text)
+        self.assertIn('\\picwgoal2000', text)
+
+    def test_picture_in_markdown(self):
+        name = self.name(run_cli('mif2md.py', self.mif).stderr)
+        self.picture(name)
+        p = run_cli('mif2md.py', self.mif)
+        self.assertNotIn('left out', p.stderr)
+        with open(self.mif[:-4] + '.md', encoding='utf-8') as f:
+            self.assertIn('images/' + name, f.read())
+
+    def test_picture_replaces_a_frame_that_also_has_a_graphic(self):
+        mixed = self.FRAME % "<ImportObject <ImportObFile `a.png'> <ShapeRect 0 0 10 10>>"
+        path = write_mif(self.folder, para('<AFrame 1>'), mixed)
+        self.picture(self.name(run_cli('mif2rtf.py', path).stderr))
+        self.assertNotIn('warning', run_cli('mif2rtf.py', path).stderr.lower())
+
+    def test_file_that_is_no_png_is_not_used(self):
+        name = self.name(run_cli('mif2rtf.py', self.mif).stderr)
+        self.picture(name, b'not a picture')
+        p = run_cli('mif2rtf.py', self.mif)
+        self.assertIn('is not a PNG file', p.stderr)
+        self.assertIn('was left out', p.stderr)
+
+    def test_name_ignores_numbers_but_not_the_drawing(self):
+        def name(frame):
+            return drawing_name(mif.parse(frame).get('AFrames').all('Frame')[0])
+        same = self.FRAME.replace('<ID 7>', '<ID 70>').replace('<Unique 12>', '<Unique 99>')
+        self.assertEqual(name(self.FRAME % ''), name(same % ''))
+        self.assertNotEqual(name(self.FRAME % ''), name(self.FRAME.replace('one', 'two') % ''))
 
 
 class FrameImageTest(unittest.TestCase):

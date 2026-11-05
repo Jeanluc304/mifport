@@ -89,7 +89,7 @@ Change the code only if the guess is wrong for documents in general, not just fo
 | Wrong characters (only in MIF 7) | A FrameRoman code that is not Mac Roman | `mif.FRAMEROMAN` and its source, Adobe's character set tables |
 | A cross-reference is plain text | Target marker not found, or the target is in another file | Warning text; `Builder._xref_targets` |
 | "on page" without a number | Pandoc only fills `\pageref` in LaTeX/PDF output | Expected for other pandoc targets |
-| A graphic is missing | File not found, embedded in the MIF, or a frame with only drawings | Warnings; `Builder.image` lookup order |
+| A graphic is missing | File not found, embedded in the MIF, or a frame with only drawings (the warning names a PNG that can replace it) | Warnings; `Builder.image` lookup order, `Builder.frame` |
 | Text changed in the output (`*`, `_`, `--`, `<<` …) | Escaping | `markdown.escape`, `asciidoc.AsciiDocWriter.escape`; add a test (below) |
 | Pandoc PDF fails: `Unicode character … not set up` | pdflatex | Use `--pdf-engine=lualatex` |
 | Pandoc PDF fails on an image | SVG without `rsvg-convert`, or a format LaTeX cannot use | Warnings; convert the graphic to PNG/PDF |

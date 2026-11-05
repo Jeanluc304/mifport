@@ -11,6 +11,8 @@ All notable changes to this project are listed here. The format follows
 - `mif2rtf`: vertical text in table cells (`CellAngle` 90 and 270) stays vertical, and the
   row keeps its height. Text turned by 180 degrees is written horizontally with a warning,
   because RTF has no such direction. Markdown and AsciiDoc keep the text horizontal.
+- A PNG in the image folder can replace a frame drawn in FrameMaker, which is not
+  converted. The warning for the frame gives the file name.
 
 ## [0.6.1] - 2026-11-05
 
