@@ -6,6 +6,13 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Paragraphs that show only their autonumber, with no typed text, are kept instead of left
+  out. This brings back table column titles that are fixed labels in the paragraph format,
+  and number or bullet cells. In the text flow, empty headings and list items stay out, as
+  do paragraphs whose text is hidden.
+
 ## [0.6.0] - 2026-11-04
 
 ### Added

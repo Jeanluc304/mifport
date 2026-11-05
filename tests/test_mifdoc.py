@@ -23,6 +23,7 @@ sys.path.insert(0, ROOT)
 from mifdoc import mif, model as m  # noqa: E402
 from mifdoc.asciidoc import AsciiDocWriter, protect_line_start  # noqa: E402
 from mifdoc.builder import Builder, split_index  # noqa: E402
+from mifdoc.dump import dump  # noqa: E402
 from mifdoc.frameimage import MAGIC, to_png  # noqa: E402
 from mifdoc.formats import list_marker, numbering, read_colors, symbol_bullet  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
@@ -376,6 +377,40 @@ class ReferenceTest(unittest.TestCase):
         self.assertEqual(len(t.rows), 2)
         self.assertEqual(t.rows[0].cells[0].rowspan, 1)
         self.assertEqual(m.plain(t.rows[1].cells[0].blocks[0].inlines), 'C')
+
+    def test_cell_that_shows_only_its_autonumber(self):
+        """Column titles can be fixed labels in the format, with nothing typed in the cell."""
+        def label(text, pgf=''):
+            return "<Cell <CellContent " + tagged(pgf + "<PgfNumString `" + text + "'>") + ">>"
+        head = '<TblH <Row ' + label('Left') + cell('Mid') + label('Right\\t') + '>>'
+        counter = r"<Pgf <PgfAutoNum Yes> <PgfNumFormat `<n+\>.'>>"
+        rows = '<Row ' + cell('b') + label('\N{BULLET}\\t') + label('1.', counter) + '>'
+        doc, _ = doc_from(para('<ATbl 1>'), table_mif(rows, 3, title=head))
+        t = self.blocks(doc, m.Table)[0]
+        shown = [[m.plain(c.blocks[0].inlines).strip() for c in r.cells] for r in t.rows]
+        self.assertEqual(shown, [['Left', 'Mid', 'Right'], ['b', '\N{BULLET}', '1.']])
+        self.assertIn('Left', '\n'.join(dump(doc)))
+        self.assertIn('Right', RtfWriter(lambda w: None).write(doc))
+        self.assertIn('Right', MarkdownWriter('pandoc', lambda w: None).write(doc))
+
+    def test_cell_without_autonumber_stays_empty(self):
+        rows = "<Row <Cell <CellContent <Para <PgfNumString ` \\t'> <ParaLine >>>>>"
+        doc, _ = doc_from(para('<ATbl 1>'), table_mif(rows, 1))
+        self.assertEqual(self.blocks(doc, m.Table)[0].rows[0].cells[0].blocks, [])
+
+    def test_paragraph_that_shows_only_its_autonumber(self):
+        doc, _ = doc_from(tagged("<PgfNumString `Note:'>"))
+        self.assertEqual(m.plain(self.blocks(doc, m.Paragraph)[-1].inlines).strip(), 'Note:')
+
+    def test_autonumber_without_text_left_out(self):
+        catalog = "<ConditionCatalog <Condition <CTag `Secret'> <CState CHidden>>>"
+        body = (tagged("<PgfTag `Heading1'> <PgfNumString `Chapter 1'>")
+                + tagged("<Pgf <PgfAutoNum Yes> <PgfNumFormat `\N{BULLET}\\t'>> "
+                         "<PgfNumString `\N{BULLET}\\t'>")
+                + tagged("<PgfNumString `Note:'>", "<Conditional <InCondition `Secret'>>",
+                         "<String `hidden'>", "<Unconditional >"))
+        doc, _ = doc_from(body, catalog)
+        self.assertEqual([m.plain(b.inlines) for b in doc.blocks], ['start'])
 
     def test_markers_by_name(self):
         body = para("<Marker <MType 25> <MTypeName `Index'> <MText `term'>>",
