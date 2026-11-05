@@ -117,7 +117,8 @@ def inlines(items, notes=None):
 
 def image(img):
     size = f', {img.width_pct}% of the column' if img.width_pct else ''
-    found = img.source or ('stored in the MIF file' if img.data else 'NOT FOUND')
+    stored = 'from the image folder' if img.name.startswith('drawing-') else 'stored in the MIF file'
+    found = img.source or (stored if img.data else 'NOT FOUND')
     return f'{img.name}{size} ({found})'
 
 

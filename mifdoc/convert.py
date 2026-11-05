@@ -173,7 +173,9 @@ def convert(path, output, args, ext, make_writer, style_file, mapping):
         raise
     except (OSError, ValueError) as e:
         raise ConvertError(e) from None
-    builder = Builder(root, path, mapping, warn, pages=ext == '.rtf')
+    target = output or os.path.splitext(path)[0] + ext
+    image_dir = os.path.join(os.path.dirname(os.path.abspath(target)), args.image_dir)
+    builder = Builder(root, path, mapping, warn, pages=ext == '.rtf', image_dir=image_dir)
     if args.list_tags:
         list_tags(builder)
         return

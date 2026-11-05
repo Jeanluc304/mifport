@@ -168,14 +168,15 @@ def di_path(di):
 
 
 class Builder:
-    def __init__(self, root, mif_path, mapping=None, warn=print, pages=False):
+    def __init__(self, root, mif_path, mapping=None, warn=print, pages=False, image_dir=None):
         """`pages`: also read headers and footers from the master pages (for outputs with
-        pages, RTF)."""
+        pages, RTF). `image_dir`: where to look for pictures that replace drawn frames."""
         self.root = root
         self.read_pages = pages
         self.mif_path = mif_path
         self.mif_dir = os.path.dirname(os.path.abspath(mif_path))
         self.map = mapping or Mapping()
+        self.image_dir = image_dir
         self._warn = warn
         self._warned = set()
         self.formats = Formats(root)
@@ -1066,18 +1067,32 @@ class Builder:
         objs = f.find('ImportObject')
         others = [n for n in ('TextLine', 'PolyLine', 'Polygon', 'Rectangle', 'Ellipse', 'Arc',
                               'RoundRect', 'TextRect', 'Math', 'MathML') if f.find(n)]
+        frame_w = (lengths(f.val('ShapeRect')) + [0, 0, 0])[2]
+        inline = f.val('FrameType') == 'Inline'
+        hint = ''
+        if others:
+            name = drawing_name(f)
+            png = self.drawing_picture(name)
+            if png:
+                img = self.placed_image(f, f, frame_w, None, name, png)
+                if inline:
+                    emit(img)
+                else:
+                    after.append(m.ImageBlock(img))
+                return
+            text = next((s.text.strip() for s in f.find('String') if s.text.strip()), '')
+            hint = (f'; to show it, put a PNG called {name} in the image folder'
+                    + (f' (the frame starts with the text {text[:40]!r})' if text else ''))
         if others and not objs:
             self.warn('a frame with only drawing objects (lines, text lines, text frames, '
-                      'equations ...) was left out')
+                      'equations ...) was left out' + hint)
             return
         if others:
             self.warn('drawing objects in frames (lines, text lines, text frames, equations ...) '
-                      'left out; only the imported graphics are kept')
+                      'left out; only the imported graphics are kept' + hint)
         if len(objs) > 1:
             self.warn('frames holding several overlapping graphics are written as separate '
                       'images, one below the other')
-        frame_w = (lengths(f.val('ShapeRect')) + [0, 0, 0])[2]
-        inline = f.val('FrameType') == 'Inline'
         for ob in objs:
             img = self.image(ob, f, frame_w)
             if img is None:
@@ -1086,6 +1101,18 @@ class Builder:
                 emit(img)
             else:
                 after.append(m.ImageBlock(img))
+
+    def drawing_picture(self, name):
+        """The user's PNG for a frame with drawing objects, from the image folder, or None."""
+        path = os.path.join(self.image_dir, name) if self.image_dir else None
+        if not path or not os.path.isfile(path):
+            return None
+        with open(path, 'rb') as f:
+            data = f.read()
+        if data[:8] != b'\x89PNG\r\n\x1a\n':
+            self.warn(f'{path} is not a PNG file; not used')
+            return None
+        return data
 
     def image(self, ob, frame, frame_w):
         """An Image for an ImportObject, or None if there is nothing to show."""
@@ -1157,6 +1184,16 @@ class Builder:
         return m.Image(source, base, w, pct, alt, data=data)
 
 
+def drawing_name(frame):
+    """The file name for a picture of a frame with drawing objects: from the frame's content,
+    without the numbers FrameMaker can change when it saves the file."""
+    def content(node):
+        return [i if isinstance(i, str) else content(i) if i.name not in VOLATILE else None
+                for i in node.items] + [node.name]
+    digest = hashlib.sha256(repr(content(frame)).encode('utf-8')).hexdigest()
+    return f'drawing-{digest[:12]}.png'
+
+
 def font_style(props):
     """The FontStyle of a resolved paragraph format."""
     font = props['font']
@@ -1165,6 +1202,7 @@ def font_style(props):
                        length(props.get('PgfSpBefore')), length(props.get('PgfSpAfter')))
 
 
+VOLATILE = {'ID', 'Unique', 'GroupID', 'TextRectID'}  # statements that say nothing about the look
 ALIGN = {'Left': 'left', 'Center': 'center', 'Right': 'right', 'LeftRight': 'justify'}
 UNDERLINE = {'FSingle': 'single', 'FNumeric': 'single', 'FDouble': 'double'}
 CASE = {'FUppercase': 'upper', 'FSmallCaps': 'small'}

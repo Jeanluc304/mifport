@@ -285,7 +285,8 @@ PDF"): `<ObjectAttribute <Tag `Alt Text'> <Value `...'>>`. The MIF Reference doe
 name the tag; the converter accepts the spellings in `builder.ALT_TAGS`.
 
 Frames can also hold drawing objects (`PolyLine`, `Rectangle`, `TextLine` …), text
-frames and equations (`Math`); they are not converted.
+frames and equations (`Math`); they are not converted, but a picture can replace the frame
+(`Builder.frame`, `drawing_name`).
 
 ## Finding your way in a large MIF file
 

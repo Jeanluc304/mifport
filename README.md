@@ -288,7 +288,8 @@ The table shows the Markdown and AsciiDoc output; for RTF see
 | Tracked changes | As if all changes were accepted | same |
 | MIF 7 FrameRoman text | Decoded | Decoded |
 
-Not converted, with a warning: drawing objects (lines, rectangles, text lines), text
+Not converted, with a warning: drawing objects (lines, rectangles, text lines; a picture
+can replace them, see [Frames drawn in FrameMaker](#frames-drawn-in-framemaker)), text
 frames and equations in frames. A frame holding several graphics on top of each other is written as separate
 images, one below the other. Structured FrameMaker documents are converted from their
 paragraph formats; the element structure is ignored, banner text (the instructions in
@@ -316,6 +317,15 @@ have the original, use the EPS version stored in the MIF file:
    preview, at the size the graphic has in FrameMaker.
 
 The tools do not start such a program themselves; see [SECURITY.md](SECURITY.md).
+
+### Frames drawn in FrameMaker
+
+Lines, boxes and text drawn in FrameMaker are not converted. The warning for such a frame
+names a file, `drawing-<id>.png`, and quotes the first text in the frame. To show the
+frame, make a PNG of it, for example by opening the page of the PDF in GIMP at 300 dpi and
+cropping it, and save it under that name in the image folder. In every run after that, the
+picture replaces the whole frame, at the width of the frame. The name changes if the
+drawing changes.
 
 Graphics are looked up as stored in the MIF (relative to the MIF file), then by file name
 next to the MIF and in a `Graphics/`, `graphics/` or `images/` folder there. The graphics
