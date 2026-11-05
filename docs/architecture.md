@@ -59,8 +59,8 @@ Blocks:
 | `Quote` | `blocks` | |
 | `ListBlock` | `ordered`, `start`, `items`, `marker` | Each item is a list of blocks: its paragraph, then nested lists, continuation paragraphs, tables, images; `marker` (a `ListMarker`) is FrameMaker's number format, used only by the RTF writer |
 | `Table` | `widths` (pt), `rows`, `title`, `label`, `anchors`, `title_below` | `label` is FrameMaker's number ("Table 1: "), kept apart because pandoc and Asciidoctor number tables themselves |
-| `Row` | `kind` (`head`/`body`/`foot`), `cells` | One entry per column; `None` where a merged cell covers the column |
-| `Cell` | `blocks`, `colspan`, `rowspan` | |
+| `Row` | `kind` (`head`/`body`/`foot`), `cells`, `height` | One entry per column; `None` where a merged cell covers the column. `height` is only used by the RTF writer |
+| `Cell` | `blocks`, `colspan`, `rowspan`, `angle` | `angle` (0, 90, 180, 270) is only used by the RTF writer |
 | `ImageBlock` | `image` | A graphic on its own line |
 
 `Heading`, `Paragraph` and `CodeBlock` also carry `tag`, the FrameMaker paragraph tag

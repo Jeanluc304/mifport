@@ -1306,6 +1306,34 @@ class RtfTest(unittest.TestCase):
         warnings = []
         return RtfWriter(warnings.append).write(doc), doc, warnings
 
+    def test_vertical_cell_text(self):
+        rows = ("<Row <RowHeight 60 pt> " + cell('up', '<CellAngle 270>') + cell('down', '<CellAngle 90>') + ">"
+                "<Row <RowHeight 12 pt> " + cell('a') + cell('b') + ">")
+        text, doc, warnings = self.rtf(para('<ATbl 1>'), table_mif(rows))
+        first, second = text.split('\\row\n')[:2]
+        self.assertIn('\\trrh1200', first)
+        self.assertLess(first.index('\\cltxbtlr'), first.index('\\cltxtbrl'))
+        self.assertNotIn('\\trrh', second)
+        self.assertNotIn('\\cltx', second)
+        self.assertEqual(warnings, [])
+        self.assertIn('turned by 270 degrees', '\n'.join(dump(doc)))
+
+    def test_vertical_text_in_merged_cell_keeps_all_row_heights(self):
+        rows = ("<Row <RowHeight 30 pt> " + cell('up', '<CellAngle 270> <CellRows 2>') + cell('a') + ">"
+                "<Row <RowHeight 40 pt> " + cell('') + cell('b') + ">"
+                "<Row <RowHeight 50 pt> " + cell('c') + cell('d') + ">")
+        text, _, _ = self.rtf(para('<ATbl 1>'), table_mif(rows))
+        self.assertEqual(re.findall(r'\\trrh(\d+)', text), ['600', '800'])
+        self.assertIn('\\cltxbtlr\\clvmgf', text)
+
+    def test_upside_down_cell_text_is_horizontal_with_a_warning(self):
+        rows = "<Row <RowHeight 30 pt> " + cell('x', '<CellAngle 180>') + cell('a') + ">"
+        text, _, warnings = self.rtf(para('<ATbl 1>'), table_mif(rows))
+        self.assertNotIn('\\cltx', text)
+        self.assertNotIn('\\trrh', text)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn('180 degrees', warnings[0])
+
     def test_tables_in_a_row_stay_separate(self):
         """Rows that touch are one table in RTF, so a paragraph must stand between tables."""
         def tbl(n, rows=1, title=''):

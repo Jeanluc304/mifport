@@ -242,6 +242,10 @@ counts for the straddles around it. Columns can be conditional too: in the table
 `<TblColumn <TblColumnNum n> <TableColumn <Conditional <InCondition ...>>>>` (columns are
 numbered from 0). Hidden columns are left out, and cells merged across them get narrower.
 
+`<CellAngle n>` turns a cell's text: 270 reads bottom to top, so 90 reads top to bottom. The
+row's `<RowHeight>` is its height as FrameMaker last computed it. RTF needs that height for
+vertical text (`\\trrh`), because the text wraps at the row height.
+
 The table title's paragraphs are in `TblTitleContent`, after a `Notes` block with the
 title's own footnotes. Some files have `TblTitleContent` directly in the `Tbl`, without the
 `TblTitle` around it; both forms are read. Whether and where the title is shown is the format property

@@ -72,6 +72,8 @@ def table(t, ind, notes):
             span = ''
             if cell.colspan > 1 or cell.rowspan > 1:
                 span = f' spans {cell.colspan} column(s) x {cell.rowspan} row(s)'
+            if cell.angle:
+                span += f' turned by {cell.angle} degrees'
             sub = blocks(cell.blocks, ind + '        ', notes)
             out.append(f'{ind}    [{c + 1}]{span}' + (' ' + sub[0].lstrip() if sub else ' (empty)'))
             out += sub[1:]

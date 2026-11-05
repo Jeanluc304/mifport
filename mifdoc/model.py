@@ -164,6 +164,7 @@ class Cell:
     blocks: list
     colspan: int = 1
     rowspan: int = 1
+    angle: int = 0   # FrameMaker's rotation: 90 reads top to bottom, 270 bottom to top
 
 
 @dataclass
@@ -172,6 +173,7 @@ class Row:
     covered by a cell spanning from the left or from above."""
     kind: str  # 'head', 'body' or 'foot'
     cells: list
+    height: float = 0.0  # as FrameMaker last computed it, in points
 
 
 @dataclass
