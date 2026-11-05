@@ -1049,8 +1049,9 @@ class Builder:
                 visible_cols = sum(1 for k in range(c, c + cs) if k not in hidden_cols)
                 content = cell.get('CellContent')
                 blocks = self.blocks(content.all('Para')) if content is not None else []
-                cells.append(m.Cell(blocks, visible_cols, visible_rows))
-            rows.append(m.Row(kind, cells))
+                angle = int(cell.val('CellAngle', '0') or 0) % 360
+                cells.append(m.Cell(blocks, visible_cols, visible_rows, angle))
+            rows.append(m.Row(kind, cells, length(row.val('RowHeight'))))
         if len(widths) < ncols:
             widths = widths + [72.0] * (ncols - len(widths))
         widths = [w for c, w in enumerate(widths[:ncols]) if c not in hidden_cols]

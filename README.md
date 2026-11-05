@@ -171,8 +171,8 @@ structure is real Word structure:
   it (`(a)`, `1.`, `[1]`), the bullet character (also bullets typed in Zapf Dingbats,
   Wingdings or Symbol, shown as the Unicode symbol), the number's character format, and
   whether a tab follows. Numbered lists start where FrameMaker's start.
-- **Tables** with column widths, repeating heading rows, merged cells and simple lines
-  around every cell; **footnotes** as Word footnotes; **cross-references** as links with
+- **Tables** with column widths, repeating heading rows, merged cells, vertical text and
+  simple lines around every cell; **footnotes** as Word footnotes; **cross-references** as links with
   the page number as a `PAGEREF` field, which Word and Writer update; **index markers**
   as `XE` fields, so that Word can build the index (Writer imports them, but reads the
   whole entry as the index key).

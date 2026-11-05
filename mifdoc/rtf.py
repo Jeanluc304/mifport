@@ -31,6 +31,7 @@ MONO_FONT = 'Courier New'
 DEFAULT_FONT = 'Times New Roman'
 CELL_PAD = 80          # twips between cell border and text (4 pt)
 BORDER = r'\brdrs\brdrw10'   # cell borders: single lines, 0.5 pt
+TEXT_FLOW = {90: r'\cltxtbrl', 270: r'\cltxbtlr'}   # FrameMaker's CellAngle -> vertical text
 
 
 def tw(points):
@@ -470,8 +471,15 @@ class RtfWriter:
         for w in t.widths:
             edges.append(edges[-1] + tw(w))
         pending = [None] * ncols   # rowspan from above: [rows left, colspan]
+        turned = 0                 # rows still covered by a cell with vertical text
         for row in t.rows:
             defs, cells = [], []
+            for cell in row.cells:
+                if cell and cell.angle in TEXT_FLOW:
+                    turned = max(turned, cell.rowspan)
+                elif cell and cell.angle:
+                    self.warn(f'text turned by {cell.angle} degrees in a table cell is written '
+                              'horizontally; RTF has no such direction')
             c = 0
             while c < ncols:
                 if pending[c]:
@@ -488,14 +496,17 @@ class RtfWriter:
                     c += 1
                     continue
                 span = max(1, min(cell.colspan, ncols - c))
-                merge = ''
+                merge = TEXT_FLOW.get(cell.angle, '')
                 if cell.rowspan > 1:
-                    merge = r'\clvmgf'
+                    merge += r'\clvmgf'
                     pending[c] = [cell.rowspan - 1, span]
                 defs.append(self.cell_def(merge, edges[c + span]))
                 cells.append(self.cell(cell))
                 c += span
             head = r'\trhdr' if row.kind == 'head' else ''
+            if turned:  # vertical text wraps at the row height, so the row needs its height
+                head += r'\trrh%d' % tw(row.height) if row.height else ''
+                turned -= 1
             trow = (r'\trowd\trgaph%d\trleft0%s\trpaddl%d\trpaddr%d\trpaddfl3\trpaddfr3'
                     % (CELL_PAD, head, CELL_PAD, CELL_PAD))
             out.append(trow + ''.join(defs) + '\n' + ''.join(cells) + '\\row\n')
