@@ -587,7 +587,10 @@ class Builder:
         keep = (m.Image, m.FootnoteRef, m.PageVariable) if self.in_master else (m.Image, m.FootnoteRef)
         empty = not m.plain(inlines).strip() and not any(isinstance(i, keep) for i in inlines)
         out = []
-        if empty:
+        if empty and self.label_only(para, role, top):
+            out.append(('para', self._label(para.str('PgfNumString'), inlines, anchors, props,
+                                            self.local_format(props)), props))
+        elif empty:
             for b in after:  # anchors of an empty paragraph go to the table below it
                 if isinstance(b, m.Table):
                     b.anchors += anchors
@@ -596,6 +599,17 @@ class Builder:
             out.append(self._entry(para, props, role, inlines, anchors, top))
         out += [('block', b, None) for b in after]
         return out
+
+    def label_only(self, para, role, top):
+        """Does this paragraph without text show its autonumber? Table headings are often
+        fixed labels in the format, with nothing typed in the cell. In the text flow an empty
+        heading or list item stays out, and so does a paragraph whose text is hidden."""
+        if not (para.str('PgfNumString') or '').strip():
+            return False
+        if top and role not in ('paragraph', 'quote'):
+            return False
+        return not any(self.is_hidden(st) for line in para.all('ParaLine')
+                       for st in line.children if st.name == 'Conditional')
 
     def _entry(self, para, props, role, inlines, anchors, top):
         numstr = para.str('PgfNumString') or ''

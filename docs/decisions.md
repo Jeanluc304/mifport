@@ -65,6 +65,13 @@ text (`Heading.number`): Word has no equivalent of FrameMaker's number formats t
 converter could set up reliably, and a document that looks like the original is the
 point of RTF.
 
+**A paragraph that shows only its autonumber is kept.** Table column titles can be fixed
+labels in the format, with nothing typed in the cell, so "no text" doesn't mean "nothing to
+see". In table cells the label is kept for every format, as a plain paragraph. In the text
+flow it's kept for ordinary paragraphs only: a heading or list item without text would be
+an empty heading or bullet in Markdown and AsciiDoc. A paragraph with hidden conditional
+text stays out, because FrameMaker hides its number too.
+
 **Table titles keep their number separately (`Table.label`).** pandoc and Asciidoctor
 add "Table 1:" themselves; GFM has no captions, so its writer prints the label.
 
