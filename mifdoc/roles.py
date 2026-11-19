@@ -9,9 +9,10 @@ import re
 
 from .model import BOLD, ITALIC, CODE, SUPER, SUB, UNDERLINE, STRIKE
 
+MAX_LEVEL = 9  # Word's outline levels; Markdown and AsciiDoc have 6
 PARA_ROLES = {'title', 'heading', 'paragraph', 'bullet', 'numbered', 'code', 'quote', 'caption',
               'skip'}
-PARA_ROLES |= {f'heading{n}' for n in range(1, 7)}
+PARA_ROLES |= {f'heading{n}' for n in range(1, MAX_LEVEL + 1)}
 CHAR_ROLES = {'plain': None, 'bold': BOLD, 'italic': ITALIC, 'code': CODE, 'superscript': SUPER,
               'subscript': SUB, 'underline': UNDERLINE, 'strike': STRIKE}
 

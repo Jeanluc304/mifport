@@ -278,7 +278,9 @@ The role of a tag comes from, in this order:
 
 Heading levels are ranked by font size, then by *Sub* in the tag name (`SubHead` comes
 after `Head`), then by the number in the tag name, at the end or at the start (`Heading2`,
-`2Hed`; a name without a number counts as 1). Run `--list-tags` to see the result:
+`2Hed`; a name without a number counts as 1). There are at most 9 levels, as in Word;
+Markdown and AsciiDoc have 6, so deeper headings become level 6 there. Run `--list-tags`
+to see the result:
 
 ```
 $ python3 mif2md.py --list-tags samples/sample/sample.mif
@@ -317,7 +319,7 @@ If a guess is wrong, write a mapping file (see `mapping.example.json`):
 }
 ```
 
-Paragraph roles: `title`, `heading`, `heading1` … `heading6`, `paragraph`, `bullet`,
+Paragraph roles: `title`, `heading`, `heading1` … `heading9`, `paragraph`, `bullet`,
 `numbered`, `code`, `quote`, `caption`, `skip`. `caption` only changes the RTF (see
 [Captions](#captions)); Markdown and AsciiDoc write captions as normal paragraphs. Character roles (combine with spaces): `plain`,
 `bold`, `italic`, `code`, `superscript`, `subscript`, `underline`, `strike`. Without a
@@ -344,7 +346,7 @@ The table shows the Markdown and AsciiDoc output; for RTF see
 | Cross-references to other files | Text | Text |
 | Index markers | Left out | `indexterm:[]` |
 | Imported graphics in anchored frames | Image, copied to `images/` | `image::` |
-| Autonumber text of other paragraphs ("Figure 3: ") | Kept as text | Kept as text |
+| Autonumber text of other paragraphs ("Figure 3: ") | Kept as text (a bare number on a paragraph that only holds a figure or table is left out) | Kept as text (the same) |
 | User variables, dates, file name | Their text | Their text |
 | Page number and running header variables | Left out (warning); RTF: Word fields | same |
 | Hidden conditional text (also hidden by an active Boolean condition expression, and hidden table rows and columns) | Left out | Left out |

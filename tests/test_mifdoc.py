@@ -402,6 +402,19 @@ class ReferenceTest(unittest.TestCase):
         doc, _ = doc_from(tagged("<PgfNumString `Note:'>"))
         self.assertEqual(m.plain(self.blocks(doc, m.Paragraph)[-1].inlines).strip(), 'Note:')
 
+    def test_counter_of_a_paragraph_holding_a_figure_left_out(self):
+        frames = "".join(f"<Frame <ID {n}> <FrameType {kind}> <ShapeRect 0 0 100 100>"
+                         " <ImportObject <ImportObFileDI `<c\\>Graphics<c\\>dot.png'>"
+                         " <ShapeRect 0 0 100 50>>>" for n, kind in ((1, 'Below'), (2, 'Inline'),
+                                                                      (3, 'Below')))
+        body = (tagged("<PgfTag `Body'> <PgfNumString `8'>", "<AFrame 1>")
+                + tagged("<PgfTag `Body'> <PgfNumString `9 '>", "<AFrame 2>")
+                + tagged("<PgfTag `Body'> <PgfNumString `Figure 3: '>", "<AFrame 3>"))
+        doc, _ = doc_from(body, "<AFrames " + frames + ">")
+        texts = [m.plain(b.inlines) for b in doc.blocks if isinstance(b, m.Paragraph)]
+        self.assertEqual(texts, ['start', '', 'Figure 3: '])   # a label is kept
+        self.assertEqual(len(list(m.walk_images(doc.blocks))), 3)
+
     def test_autonumber_without_text_left_out(self):
         catalog = "<ConditionCatalog <Condition <CTag `Secret'> <CState CHidden>>>"
         body = (tagged("<PgfTag `Heading1'> <PgfNumString `Chapter 1'>")
@@ -1484,6 +1497,23 @@ class RtfTest(unittest.TestCase):
         root = mif.parse("<MIFFile 2015>\n<TextFlow " + body + ">")
         doc = Builder(root, 'x.mif', mapping, warn=lambda s: None).build()
         self.assertEqual([b.caption for b in doc.blocks], [True, False])
+
+    def test_heading_levels_down_to_nine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'map.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({'paragraphs': {f'Sub{n}': f'heading{n}' for n in range(1, 8)}}, f)
+            mapping = Mapping(path)
+        body = ''.join(tagged(f"<PgfTag `Sub{n}'>", f"<String `level {n}'>") for n in range(1, 8))
+        doc = Builder(mif.parse("<MIFFile 2015>\n<TextFlow " + body + ">"), 'x.mif', mapping,
+                      warn=lambda s: None).build()
+        self.assertEqual([b.level for b in doc.blocks], [1, 2, 3, 4, 5, 6, 7])
+        self.assertIn('\\outlinelevel6', RtfWriter(lambda w: None).write(doc))
+        md = MarkdownWriter('pandoc', lambda w: None).write(doc)
+        self.assertIn('###### level 7', md)             # Markdown has six levels
+        from mifdoc.builder import rank_headings
+        keys = {f'H{n}': (0, False, n) for n in range(1, 13)}
+        self.assertEqual(rank_headings(keys)['H12'], 9)  # never deeper than Word's nine
 
     def test_captions_use_words_caption_style(self):
         body, extra, catalog = self.caption_doc()

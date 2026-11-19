@@ -6,6 +6,18 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Heading levels 7 to 9: `heading7` … `heading9` in the mapping file, and automatically
+  ranked headings go down to level 9 (Word's outline levels; Markdown and AsciiDoc still
+  stop at 6). Deeper automatic levels become 9 instead of normal text in Word.
+
+### Fixed
+
+- A bare autonumber ("8") of a paragraph that holds only a figure or table, typically a
+  counter of the anchoring format, is left out again; it appeared in front of figures
+  since 0.6.1. Labels such as "Figure 8:" are kept.
+
 ## [0.8.1] - 2026-11-19
 
 ### Fixed

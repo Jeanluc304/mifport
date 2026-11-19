@@ -54,7 +54,7 @@ Blocks:
 | Type | Fields | Notes |
 |---|---|---|
 | `Document` | `title` (inlines), `lang`, `blocks`, `style`, `title_tag`, `formats`, `char_formats` | `title` comes from the first `title` paragraph; `style` (page size, margins, `FontStyle` per role) is used by `style.py` and for the RTF page setup; `formats` (tag → `ParaFormat`) and `char_formats` (tag → `CharFormat`) only by the RTF writer |
-| `Heading` | `level` (1–6), `inlines`, `anchors`, `id`, `number`, `local` | `anchors` are ids of cross-reference targets in the heading; `id` is a unique id for the other headings; `number` is FrameMaker's autonumber, only written to RTF |
+| `Heading` | `level` (1–9), `inlines`, `anchors`, `id`, `number`, `local` | `anchors` are ids of cross-reference targets in the heading; `id` is a unique id for the other headings; `number` is FrameMaker's autonumber, only written to RTF |
 | `Paragraph` | `inlines`, `local`, `caption` | `caption` marks a figure or table title; only the RTF writer uses it |
 | `CodeBlock` | `text`, `local` | Consecutive code paragraphs with the same tag, joined with `\n` |
 | `Quote` | `blocks` | |

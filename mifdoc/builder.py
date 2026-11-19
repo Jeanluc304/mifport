@@ -17,7 +17,7 @@ from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, lengt
                       COUNTER_BLOCK, SERIES, list_marker, numbering, symbol_bullet)
 from .frameimage import to_png
 from .mif import Node
-from .roles import CAPTION_FORMAT, Mapping, is_sub, tag_number, tag_role
+from .roles import CAPTION_FORMAT, MAX_LEVEL, Mapping, is_sub, tag_number, tag_role
 
 # Char statements -> text. None means a line break; '' means nothing visible.
 CHARS = {
@@ -173,11 +173,11 @@ def rank_headings(keys):
 
     Tags are ranked by font size (larger first), then by 'Sub' in the name (Heading
     before SubHeading), then by the number in the tag name (Heading1 before Heading2;
-    no number counts as 1); the rank is the level. Files that are combined are ranked
+    no number counts as 1); the rank is the level, at most MAX_LEVEL. Files that are combined are ranked
     together, so that a chapter without top-level headings keeps the levels of the others.
     """
     ranked = sorted(set(keys.values()))
-    return {tag: ranked.index(k) + 1 for tag, k in keys.items()}
+    return {tag: min(ranked.index(k) + 1, MAX_LEVEL) for tag, k in keys.items()}
 
 
 def file_target(di, marker_text):
@@ -618,9 +618,16 @@ class Builder:
         inlines = [i for i in inlines if not isinstance(i, m.Anchor)]
         keep = (m.Image, m.FootnoteRef, m.PageVariable) if self.in_master else (m.Image, m.FootnoteRef)
         empty = not m.plain(inlines).strip() and not any(isinstance(i, keep) for i in inlines)
+        numstr = para.str('PgfNumString') or ''
+        if (role in ('paragraph', 'quote') and not m.plain(inlines).strip()
+                and (after or any(isinstance(i, m.Image) for i in inlines))
+                and not re.search(r'[^\W\d_]', numstr)):
+            # a paragraph that only holds graphics or tables: a bare number there ('8') is a
+            # counter of the anchoring format, not text (a label like 'Figure 8' is kept)
+            numstr = ''
         out = []
-        if empty and self.label_only(para, role, top):
-            p = self._label(para.str('PgfNumString'), inlines, anchors, props, self.local_format(props))
+        if empty and numstr.strip() and self.label_only(para, role, top):
+            p = self._label(numstr, inlines, anchors, props, self.local_format(props))
             p.caption = role == 'caption'
             out.append(('para', p, props))
         elif empty:
@@ -629,7 +636,7 @@ class Builder:
                     b.anchors += anchors
                     break
         else:
-            out.append(self._entry(para, props, role, inlines, anchors, top))
+            out.append(self._entry(para, props, role, inlines, anchors, top, numstr))
         out += [('block', b, None) for b in after]
         return out
 
@@ -644,8 +651,7 @@ class Builder:
         return not any(self.is_hidden(st) for line in para.all('ParaLine')
                        for st in line.children if st.name == 'Conditional')
 
-    def _entry(self, para, props, role, inlines, anchors, top):
-        numstr = para.str('PgfNumString') or ''
+    def _entry(self, para, props, role, inlines, anchors, top, numstr):
         local = self.local_format(props)
         if role in ('title', 'heading') or role.startswith('heading'):
             if not top:  # headings in table cells and footnotes stay paragraphs
