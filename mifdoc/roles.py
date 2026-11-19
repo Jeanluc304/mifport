@@ -9,7 +9,8 @@ import re
 
 from .model import BOLD, ITALIC, CODE, SUPER, SUB, UNDERLINE, STRIKE
 
-PARA_ROLES = {'title', 'heading', 'paragraph', 'bullet', 'numbered', 'code', 'quote', 'skip'}
+PARA_ROLES = {'title', 'heading', 'paragraph', 'bullet', 'numbered', 'code', 'quote', 'caption',
+              'skip'}
 PARA_ROLES |= {f'heading{n}' for n in range(1, 7)}
 CHAR_ROLES = {'plain': None, 'bold': BOLD, 'italic': ITALIC, 'code': CODE, 'superscript': SUPER,
               'subscript': SUB, 'underline': UNDERLINE, 'strike': STRIKE}
@@ -33,6 +34,14 @@ NOT_HEADING = re.compile(r'table|tabelle|tbl|column|spalte|figure|fig(?-i:(?![a-
                          r'bild|toc|lof|lot|index|cell|zelle|run-?in|running|runhead|'
                          r'after(?!word)|nach(?!wort|trag)|following|header|footer|kopfzeile|'
                          r'fußzeile|fusszeile|mapping|ix$', re.I)
+# Figure and table titles: FigureTitle, Fig_Caption, TableTitle, Abbildungstitel, Caption,
+# Bildunterschrift, Beschriftung, and FrameMaker's standard tag for figure titles, Figure
+CAPTION = re.compile(r'^(figure|fig|abbildung|abb|bild|table|tabelle|tab|tbl)[ ._-]?s?[ ._-]?'
+                     r'(title|titel|caption|unterschrift|beschriftung)|caption|bildunterschrift|'
+                     r'beschriftung|^(figure|abbildung)$', re.I)
+# An autonumber that starts with such a word: F:Figure <n+>: , T:Tabelle <$chapnum>-<n+>
+CAPTION_FORMAT = re.compile(r'^(?:[A-Za-z]:)?\s*(figure|fig\.?|abbildung|abb\.?|bild|table|tabelle|'
+                            r'tab\.?)\s*<', re.I)
 CODE_TAG = re.compile(r'^(code|codeblock|listing|programlisting|quellcode|sourcecode|pre)\b', re.I)
 QUOTE_TAG = re.compile(r'^(quote|blockquote|zitat|extract)\b', re.I)
 
@@ -41,6 +50,8 @@ def tag_role(tag):
     """The role suggested by a paragraph tag's name alone, or None."""
     if TITLE.fullmatch(tag.strip()):
         return 'title'
+    if CAPTION.search(tag):
+        return 'caption'
     if (HEADING.search(tag) or HED.search(tag)) and not NOT_HEADING.search(tag):
         return 'heading'
     if CODE_TAG.search(tag):

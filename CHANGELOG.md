@@ -6,6 +6,32 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A `caption` paragraph role. Figure and table titles are recognised from their tag
+  name (`FigureTitle…`, `TableTitle`, `Caption`, FrameMaker's standard `Figure` …) or an
+  autonumber that starts with Figure, Table, Abbildung or Tabelle; the mapping file can set
+  or remove it. In RTF, captions and table titles get Word's built-in Caption style, and a
+  figure stays on the page of the caption below it.
+- `mif2rtf --caption-numbers simple`: figures and tables are counted through the document
+  (Figure 7) instead of per chapter (Figure 2-3), as Word `SEQ` fields, and
+  cross-references to them get the new number.
+- `mif2rtf --no-headers`: leave out the headers and footers of the master pages.
+- `mif2rtf --combine`: all MIF files of a folder in one RTF file, each starting on a new
+  page with its own headers and footers, in the order of their names (appendices
+  `app_…` last) or of a list file given with `--order`. Cross-references between the
+  files become links, heading levels are the same in all files, and with
+  `--caption-numbers simple` figures and tables are counted through the whole book.
+
+### Changed
+
+- `mif2rtf`: table titles are written in their FrameMaker paragraph format instead of
+  plain bold.
+- Paragraphs with the tag `Figure` and other caption tags are listed with the role
+  `caption` by `--list-tags`, and as `CAPTION` by `--dump`.
+- Options may also come between the input and the output file
+  (`mif2rtf in.mif --map map.json out.rtf`).
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

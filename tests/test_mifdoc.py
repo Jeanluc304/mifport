@@ -27,7 +27,7 @@ from mifdoc.dump import dump  # noqa: E402
 from mifdoc.frameimage import MAGIC, to_png  # noqa: E402
 from mifdoc.formats import list_marker, numbering, read_colors, symbol_bullet  # noqa: E402
 from mifdoc.markdown import MarkdownWriter, escape, escape_line_start  # noqa: E402
-from mifdoc.roles import is_sub, tag_number, tag_role  # noqa: E402
+from mifdoc.roles import Mapping, is_sub, tag_number, tag_role  # noqa: E402
 from mifdoc.rtf import RtfWriter, esc as rtf_esc  # noqa: E402
 
 SAMPLE = os.path.join(ROOT, 'samples', 'sample')
@@ -1431,6 +1431,111 @@ class RtfTest(unittest.TestCase):
         out, _, _ = self.rtf(para("<String `text'>", '<ATbl 2>'), f'<Tbls {tbl(2, title=title)}>')
         self.assertNotRegex(out, r'\\pard[^\n]* \\par\n\\pard[^\n]*Caption')
 
+    # ---- captions ----
+
+    @staticmethod
+    def caption_doc():
+        """Two chapters with figures and a table numbered per chapter, and cross-references."""
+        def cap(n, text):
+            marker = f"<Marker <MType 9> <MText `{n}: FigureTitle: {text}'>>"
+            return tagged(f"<PgfTag `FigureTitle'> <PgfNumString `Figure {n}: '>", marker,
+                          f"<String `{text}'>")
+
+        def ref(src, shown):
+            return (f"<XRef <XRefName `Figure'> <XRefSrcText `{src}'>> <String `{shown}'> <XRefEnd>")
+        tmarker = "<Marker <MType 9> <MText `2-1: TableTitle: Prices'>>"
+        title = (f"<TblTitle <TblTitleContent <Notes > <Para <PgfTag `TableTitle'> "
+                 f"<PgfNumString `Table 2-1: '> <ParaLine {tmarker} <String `Prices'>>>>>")
+        frame = ("<AFrames <Frame <ID 1> <FrameType Below> <ShapeRect 0 0 100 50>"
+                 " <ImportObject <ImportObFile `Graphics/dot.png'> <ShapeRect 0 0 100 50>>>>")
+        extra = frame + table_mif(
+            "<Row <Cell <CellContent <Para <PgfTag `Body'> <ParaLine <String `a'>>>>>>", 1, title)
+        end = RTF_CATALOG.index('\n<FontCatalog') - 1   # the end of the PgfCatalog
+        catalog = (RTF_CATALOG[:end] + "\n <Pgf <PgfTag `TableTitle'> <PgfFont <FFamily `Arial'> "
+                   "<FSize 9 pt> <FAngle `Italic'>>>" + RTF_CATALOG[end:])
+        body = (tagged("<PgfTag `Heading1'>", "<String `One'>")
+                + para('<AFrame 1>') + cap('1-1', 'Overview')
+                + tagged("<PgfTag `Heading1'>", "<String `Two'>")
+                + cap('2-1', 'Detail') + para('<ATbl 1>')
+                + tagged("<PgfTag `Body'>", "<String `See '>", ref('2-1: FigureTitle: Detail', 'Figure 2-1'),
+                         "<String ` and '>", ref('2-1: TableTitle: Prices', 'Table 2-1 on page 5'),
+                         "<String `; typed: Figure 2-1.'>"))
+        return body, extra, catalog
+
+    def test_caption_roles_from_names_and_autonumbers(self):
+        for tag in ('FigureTitle', 'FigureTitleWide', 'TableTitle', 'Fig_Caption', 'Caption',
+                    'Abbildungstitel', 'Bildunterschrift', 'Figure', 'Subcaption'):
+            self.assertEqual(tag_role(tag), 'caption', tag)
+        for tag in ('FigureBody', 'TableBody', 'CellHeading', 'Body', 'Figures', 'Heading1'):
+            self.assertNotEqual(tag_role(tag), 'caption', tag)
+        auto = tagged("<PgfTag `Bildtext'> <Pgf <PgfAutoNum Yes> "
+                      "<PgfNumFormat `F:Abbildung <$chapnum\\>-<n+\\>: '>> <PgfNumString `Abbildung 3-1: '>",
+                      "<String `Aufbau'>")
+        doc, _ = doc_from(auto)
+        self.assertTrue(doc.blocks[-1].caption)
+
+    def test_map_sets_or_removes_the_caption_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'map.json')
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({'paragraphs': {'Legend': 'caption', 'FigureTitle': 'paragraph'}}, f)
+            mapping = Mapping(path)
+        body = tagged("<PgfTag `Legend'>", "<String `a'>") + tagged("<PgfTag `FigureTitle'>", "<String `b'>")
+        root = mif.parse("<MIFFile 2015>\n<TextFlow " + body + ">")
+        doc = Builder(root, 'x.mif', mapping, warn=lambda s: None).build()
+        self.assertEqual([b.caption for b in doc.blocks], [True, False])
+
+    def test_captions_use_words_caption_style(self):
+        body, extra, catalog = self.caption_doc()
+        doc, _ = doc_from(body, extra, catalog=catalog)
+        out = RtfWriter(lambda w: None).write(doc)
+        style = re.search(r'\{\\s(\d+)[^{}]*\\snext0 caption;\}', out)
+        self.assertIsNotNone(style)
+        self.assertEqual(len(re.findall(re.escape(r'\pard\plain\s' + style.group(1)) + r'[^0-9]', out)), 3)
+        # the table title in its own format (Arial 9 pt italic), not plain bold
+        line = next(ln for ln in out.split('\n') if 'Prices' in ln and 'bkmkstart' in ln)
+        self.assertRegex(line, r'\\f\d+\\fs18\\b\\i')
+        self.assertNotIn(r'{\b ', line)
+        # the figure stays with the caption below it
+        self.assertRegex(out, r'\\pard\\plain\\keepn[^\n]*\\pict')
+        # chapter numbers stay as text
+        self.assertIn('Figure 2-1: Detail', out)
+        self.assertNotIn('SEQ', out)
+        self.assertIn('CAPTION [FigureTitle] <anchor #overview>Figure 1-1: ', '\n'.join(dump(doc)))
+
+    def test_simple_caption_numbers(self):
+        body, extra, catalog = self.caption_doc()
+        doc, _ = doc_from(body, extra, catalog=catalog)
+        out = RtfWriter(lambda w: None, 'simple').write(doc)
+        seq = re.findall(r'SEQ (\w+) \\\\\* ARABIC \}\}\{\\fldrslt\{(\d+)\}', out)
+        self.assertEqual(seq, [('Figure', '1'), ('Figure', '2'), ('Table', '1')])
+        text = out[out.index('See '):]
+        self.assertIn('Figure 2}', text)
+        self.assertIn('Table 1 on page', text)
+        self.assertIn('typed: Figure 2-1.', text)   # not a cross-reference: unchanged
+        self.assertIn('Figure 2-1', m.plain(doc.blocks[-1].inlines))  # write() works on a copy
+
+    def test_simple_numbers_leave_longer_numbers_alone(self):
+        def p(text):
+            return m.Paragraph([m.Text(text)])
+        doc = m.Document()
+        doc.blocks = [m.Paragraph([m.Anchor('a'), m.Text('Figure 1-1: x')], caption=True),
+                      m.Paragraph([m.Link('a', [m.Text('Figure 1-1 (not 1-10, 11-1)')])]), p('rest')]
+        new = m.simple_caption_numbers(doc)
+        self.assertEqual(m.plain(new.blocks[1].inlines), 'Figure 1 (not 1-10, 11-1)')
+        self.assertEqual(new.blocks[0].inlines[1:], [m.Text('Figure '), m.FieldCode('seq', 'Figure', '1'),
+                                                     m.Text(': x')])
+
+    def test_caption_numbers_option(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            body, extra, _ = self.caption_doc()
+            path = write_mif(tmp, body, extra)
+            p = run_cli('mif2rtf.py', '--caption-numbers', 'simple', path)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(path[:-4] + '.rtf', encoding='utf-8') as f:
+                self.assertIn('SEQ Figure', f.read())
+            self.assertNotEqual(run_cli('mif2md.py', '--caption-numbers', 'simple', path).returncode, 0)
+
     def test_table_title_with_and_without_tbltitle(self):
         """TblTitleContent can be in a TblTitle or directly in the Tbl."""
         marker = "<Marker <MType 9> <MText `77: Cap: Table 1'>>"
@@ -1677,6 +1782,117 @@ class RtfTest(unittest.TestCase):
         self.assertIn('[missing.png]', out)
         self.assertNotIn('\\pict', out)
         self.assertEqual(len(warnings), 2)
+
+
+class CombineTest(unittest.TestCase):
+    """mif2rtf --combine: all MIF files of a folder in one RTF file; and --no-headers."""
+
+    def test_order_by_name_with_appendices_last(self):
+        from mifdoc.combine import file_order
+        names = ['app_c113.mif', 'ch_10.mif', 'app_a2.mif', 'ch_2.mif', 'app_b.mif', 'ch_1.mif',
+                 'app_a.mif', 'app_c.mif', 'application.mif', 'AppD.mif', 'Anhang_A.mif']
+        self.assertEqual(sorted(names, key=file_order),
+                         ['application.mif', 'ch_1.mif', 'ch_2.mif', 'ch_10.mif', 'Anhang_A.mif',
+                          'app_a.mif', 'app_a2.mif', 'app_b.mif', 'app_c.mif', 'app_c113.mif',
+                          'AppD.mif'])
+
+    def make_book(self, tmp):
+        """ch_1 (a cross-reference to ch_2), ch_2 (only Heading2, its own 'Intro'), app_a."""
+        folder = os.path.join(tmp, 'book')
+        os.mkdir(folder)
+        files = {
+            'ch_1.mif': (tagged("<PgfTag `Heading1'>", "<String `Intro'>")
+                         + tagged("<PgfTag `Body'>", "<String `See '> <XRef <XRefName `X'> "
+                                  "<XRefSrcText `t1'> <XRefSrcFile `<c\\>ch_2.fm'>> "
+                                  "<String `Details'> <XRefEnd> <String ` and '> <XRef <XRefName `X'> "
+                                  "<XRefSrcText `t9'> <XRefSrcFile `<c\\>other.fm'>> "
+                                  "<String `Elsewhere'> <XRefEnd>")),
+            'ch_2.mif': (tagged("<PgfTag `Heading2'>", "<String `Intro'>")
+                         + tagged("<PgfTag `Heading2'>", "<Marker <MType 9> <MText `t1'>> "
+                                  "<String `Details'>")),
+            'app_a.mif': tagged("<PgfTag `Heading1'>", "<String `Appendix'>"),
+        }
+        for name, body in files.items():
+            os.rename(write_mif(tmp, body), os.path.join(folder, name))
+        return folder
+
+    def test_combine_folder_into_one_rtf(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_book(tmp)
+            p = run_cli('mif2rtf.py', folder, '--combine')
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn('combining 3 files in this order:\n  ch_1.mif\n  ch_2.mif\n  app_a.mif',
+                          p.stdout)
+            self.assertIn("cross-references to the file 'other' are kept as text", p.stderr)
+            with open(folder + '.rtf', encoding='utf-8') as f:
+                out = f.read()
+            self.assertTrue(rtf_groups_balanced(out))
+            self.assertEqual(out.count('\\sect\\sectd\\sbkpage'), 2)
+            self.assertLess(out.index('Intro'), out.index('Details'))
+            self.assertLess(out.index('Details'), out.index('Appendix'))
+            # the link goes to the heading in ch_2, whose id differs from ch_1's 'Intro'
+            self.assertIn('HYPERLINK \\\\l "details"', out)
+            self.assertIn('bkmkstart intro}', out)
+            self.assertIn('bkmkstart intro_2}', out)
+            self.assertNotIn('\0', out)
+            self.assertIn('Elsewhere', out)
+            # ch_2 alone would make Heading2 level 1; combined it stays below Heading1
+            p = run_cli('mif2rtf.py', folder, '--combine', '--dump')
+            self.assertIn('H2 [Heading2] Intro', p.stdout)
+            self.assertIn('== NEXT FILE ch_2.mif (new page) ==', p.stdout)
+
+    def test_order_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = self.make_book(tmp)
+            order = os.path.join(tmp, 'order.txt')
+            with open(order, 'w') as f:
+                f.write('# my order\napp_a\n\nch_1.mif\n')
+            out = os.path.join(tmp, 'all.rtf')
+            p = run_cli('mif2rtf.py', '--combine', '--order', order, folder, out)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn('in this order:\n  app_a.mif\n  ch_1.mif\n', p.stdout)
+            self.assertIn('not in the order file, left out: ch_2.mif', p.stderr)
+            self.assertIn("file 'ch_2' are kept as text: it is not among the combined", p.stderr)
+            with open(order, 'w') as f:
+                f.write('ch_3\n')
+            p = run_cli('mif2rtf.py', '--combine', '--order', order, folder, out)
+            self.assertEqual(p.returncode, 1)
+            self.assertIn("'ch_3' is no .mif file of the folder", p.stderr)
+            p = run_cli('mif2rtf.py', '--order', order, folder)
+            self.assertIn('--order only applies with --combine', p.stderr)
+            p = run_cli('mif2rtf.py', '--combine', os.path.join(folder, 'ch_1.mif'))
+            self.assertIn('--combine needs a folder', p.stderr)
+            p = run_cli('mif2rtf.py', '--combine', folder, tmp)
+            self.assertIn('the output is one file, not a folder', p.stderr)
+
+    def test_following_files_get_their_own_or_empty_headers(self):
+        doc, _ = pages_doc()
+        plain_doc = m.Document(blocks=[m.Paragraph([m.Text('x')], 'Body')], pages=m.PageLayout(start=1))
+        from mifdoc.combine import combine
+        both = combine([('a.mif', doc, {}), ('b.mif', plain_doc, {})], lambda w: None)
+        out = RtfWriter(lambda s: None).write(both)
+        self.assertTrue(rtf_groups_balanced(out))
+        # roman pages, then decimal: the second file starts again at 1
+        self.assertIn('\\sect\\sectd\\sbkpage\\pgnstarts1\\pgnrestart\\pgndec', out)
+        rest = out[out.index('\\sbkpage'):]
+        for word in ('headerr', 'headerl', 'footerr', 'footerl'):  # not the first file's
+            self.assertIn('{\\%s \\pard\\plain\\par}' % word, rest)
+        same = combine([('a.mif', pages_doc()[0], {}), ('b.mif', pages_doc()[0], {})], lambda w: None)
+        self.assertIn('\\sbkpage\\pgncont\\pgnlcrm', RtfWriter(lambda s: None).write(same))
+
+    def test_no_headers(self):
+        root = mif.parse(PAGES_MIF)
+        doc = Builder(root, os.path.join(SAMPLE, 'pages.mif'), warn=lambda w: None, pages=True,
+                      headers=False).build()
+        self.assertEqual((doc.pages.start, doc.pages.number_style), (5, 'lower-roman'))
+        self.assertIsNone(doc.pages.header)
+        self.assertIsNone(doc.pages.footer_first)
+        out = RtfWriter(lambda s: None).write(doc)
+        self.assertNotIn('Guide', out)
+        self.assertNotIn('Confidential', out)
+        self.assertNotIn('\\header', out)
+        self.assertNotIn('\\titlepg', out)
+        self.assertIn('\\pgnstarts5', out)
 
 
 # Runs a script with an audit hook that ends the process as soon as it tries to use the

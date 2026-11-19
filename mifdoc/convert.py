@@ -8,7 +8,8 @@ import sys
 from collections import Counter
 
 from . import __version__, mif
-from .builder import Builder
+from .builder import Builder, rank_headings
+from .combine import combine, file_order, read_order
 from .dump import dump
 from .model import walk_images
 from .roles import Mapping
@@ -75,7 +76,7 @@ def arguments(prog, description, ext, extra=None):
     p.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     if extra:
         extra(p)
-    return p.parse_args()
+    return p.parse_intermixed_args()  # options may also come between input and output
 
 
 def run(args, ext, make_writer, style_file=None):
@@ -87,6 +88,12 @@ def run(args, ext, make_writer, style_file=None):
         mapping = Mapping(args.map)
     except (OSError, ValueError) as e:
         sys.exit(f'error: {e}')
+    if getattr(args, 'order', None) and not args.combine:
+        sys.exit('error: --order only applies with --combine')
+    if getattr(args, 'combine', False) and not args.list_tags:
+        if not os.path.isdir(args.input):
+            sys.exit('error: --combine needs a folder of MIF files as input')
+        sys.exit(run_combined(args, ext, make_writer, mapping))
     if os.path.isdir(args.input):
         sys.exit(run_folder(args, ext, make_writer, style_file, mapping))
     if args.recursive:
@@ -164,6 +171,76 @@ def run_folder(args, ext, make_writer, style_file, mapping):
     return 1 if failed else 0
 
 
+def run_combined(args, ext, make_writer, mapping):
+    """Convert all MIF files of the folder args.input into one output file, in the order
+    of args.order, else of their names (see combine.file_order). Returns the exit status."""
+    folder = args.input
+    files = sorted(find_mif_files(folder, args.recursive),
+                   key=lambda p: file_order(os.path.relpath(p, folder)))
+    if not files:
+        return f'error: no .mif files in {folder}' + ('' if args.recursive else
+                                                     ' (use --recursive for its subfolders)')
+    if args.order:
+        try:
+            files, left_out = read_order(args.order, files, folder)
+        except (OSError, ValueError) as e:
+            return f'error: {e}'
+        if left_out:
+            warn('not in the order file, left out: '
+                 + ', '.join(os.path.relpath(f, folder) for f in left_out))
+    output = args.output or os.path.normpath(os.path.abspath(folder)) + ext
+    if os.path.isdir(output):
+        return f'error: with --combine, the output is one file, not a folder: {output}'
+    out_dir = os.path.dirname(os.path.abspath(output))
+    if not os.path.isdir(out_dir):
+        return f'error: the folder for the output file does not exist: {out_dir}'
+    image_dir = os.path.join(out_dir, args.image_dir)
+    builders, failed = [], []
+    for path in files:
+        rel = os.path.relpath(path, folder)
+        _start_file(rel)
+        try:
+            root, _ = mif.load(path, warn)
+            builders.append((path, rel, Builder(
+                root, path, mapping, warn, pages=True, image_dir=image_dir,
+                headers=not getattr(args, 'no_headers', False), link_files=True)))
+        except mif.BookFileError:
+            print(f'skipped {rel}: a MIF book file', file=sys.stderr)
+        except (OSError, ValueError) as e:
+            print(f'error: {rel}: {e}', file=sys.stderr)
+            failed.append(rel)
+    if failed:
+        _start_file('')
+        return f'error: nothing written; files that could not be read: {", ".join(failed)}'
+    # heading levels from the tags of all files, so that they are the same in every chapter
+    keys = {}
+    for _, _, b in builders:
+        for tag, k in b.heading_keys.items():
+            keys.setdefault(tag, k)
+    levels = rank_headings(keys)
+    parts, level = [], 0
+    for path, rel, b in builders:
+        _start_file(rel)
+        b.heading_levels, b.level_before = levels, level
+        parts.append((rel, b.build(), b.anchors))
+        level = b.last_level
+    _start_file('')
+    out = sys.stderr if args.dump else sys.stdout
+    print(f'combining {len(parts)} file{"s" if len(parts) != 1 else ""} in this order:', file=out)
+    for _, rel, _ in builders:
+        print(f'  {rel}', file=out)
+    doc = combine(parts, warn)
+    if args.dump:
+        print('\n'.join(dump(doc)))
+        return 0
+    stored_graphics(doc, args, output)
+    text = make_writer().write(doc)
+    with open(output, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(text)
+    print(f'wrote {output}')
+    return 0
+
+
 def convert(path, output, args, ext, make_writer, style_file, mapping):
     """Read the MIF file `path`, build the document, place graphics, write `output`
     (None: the input name with ext). Raises ConvertError."""
@@ -175,7 +252,8 @@ def convert(path, output, args, ext, make_writer, style_file, mapping):
         raise ConvertError(e) from None
     target = output or os.path.splitext(path)[0] + ext
     image_dir = os.path.join(os.path.dirname(os.path.abspath(target)), args.image_dir)
-    builder = Builder(root, path, mapping, warn, pages=ext == '.rtf', image_dir=image_dir)
+    builder = Builder(root, path, mapping, warn, pages=ext == '.rtf', image_dir=image_dir,
+                      headers=not getattr(args, 'no_headers', False))
     if args.list_tags:
         list_tags(builder)
         return

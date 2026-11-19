@@ -32,7 +32,10 @@ def blocks(items, ind, notes):
             anchors = ''.join(f'  #{a}' for a in b.anchors)
             out.append(f'{ind}H{b.level} {tag(b)} {inlines(b.inlines, notes)}{anchors}')
         elif isinstance(b, m.Paragraph):
-            out.append(f'{ind}P  {tag(b)} {inlines(b.inlines, notes)}')
+            kind = 'CAPTION' if b.caption else 'P '
+            out.append(f'{ind}{kind} {tag(b)} {inlines(b.inlines, notes)}')
+        elif isinstance(b, m.ChapterBreak):
+            out.append(f'{ind}== NEXT FILE {b.name} (new page) ==')
         elif isinstance(b, m.CodeBlock):
             lines = b.text.split('\n')
             out.append(f'{ind}CODE {tag(b)} {len(lines)} line(s): {short(lines[0])}')
