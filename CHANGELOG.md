@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-19
+
 ### Added
 
 - Heading levels 7 to 9: `heading7` … `heading9` in the mapping file, and automatically
@@ -194,7 +196,8 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Jeanluc304/mifport/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/Jeanluc304/mifport/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Jeanluc304/mifport/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Jeanluc304/mifport/compare/v0.6.1...v0.7.0
