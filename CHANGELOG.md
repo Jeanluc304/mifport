@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-19
+
 ### Added
 
 - A `caption` paragraph role. Figure and table titles are recognised from their tag
@@ -173,7 +175,8 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Jeanluc304/mifport/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Jeanluc304/mifport/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Jeanluc304/mifport/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Jeanluc304/mifport/compare/v0.5.0...v0.6.0
