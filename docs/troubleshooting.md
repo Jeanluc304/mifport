@@ -76,8 +76,8 @@ Change the code only if the guess is wrong for documents in general, not just fo
 |---|---|---|
 | A heading is a normal paragraph | The tag name is not recognised | `--list-tags`; `--map`; `roles.HEADING` / `NOT_HEADING` |
 | A caption or table title became a heading | Its name contains "heading"/"title" | `roles.NOT_HEADING` |
-| Heading levels are off by one | Levels are ranked by font size, then by the number in the tag | `Builder._heading_levels`; `--map` with `heading1` … `heading6` |
-| Most headings end up at the deepest level | The document has more heading formats (sizes and numbers) than Markdown and AsciiDoc have levels; each one gets its own rank | `--map` with `heading1` … `heading6` to put several formats on one level |
+| Heading levels are off by one | Levels are ranked by font size, then by the number in the tag | `rank_headings` in `builder.py`; `--map` with `heading1` … `heading9` |
+| Most headings end up at the deepest level | The document has more heading formats (sizes and numbers) than Markdown and AsciiDoc have levels; each one gets its own rank | `--map` with `heading1` … `heading9` to put several formats on one level |
 | The first heading is missing | It was taken as the document title (tag `Title`/`Titel`) | `roles.TITLE`, `Builder.build` |
 | A list is not a list | The numbering format is a word ("Step <n+>:"), not a bullet or counter | `formats.numbering`; `--map` with `bullet`/`numbered` |
 | A list is nested wrongly | List levels follow the first-line indent (`PgfFIndent`) | `Builder._group`; `--dump`; check the indents in the MIF |
