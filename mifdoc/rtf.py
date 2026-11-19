@@ -406,7 +406,9 @@ class RtfWriter:
         if isinstance(b, m.ImageBlock):
             return self.pard('', extra, grow=True) + self.image(b.image) + '\\par\n'
         if isinstance(b, m.ChapterBreak) and not extra:
-            return '\\sect\\sectd\\sbkpage' + self.section(b.pages, follow=True) + '\n'
+            # \pard first: after a table, the section break needs a paragraph of its own;
+            # without it, Word keeps what follows in the table
+            return '\\pard\\plain\\sect\\sectd\\sbkpage' + self.section(b.pages, follow=True) + '\n'
         return ''
 
     def heading(self, h, extra=''):
