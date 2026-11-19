@@ -1880,6 +1880,16 @@ class CombineTest(unittest.TestCase):
         same = combine([('a.mif', pages_doc()[0], {}), ('b.mif', pages_doc()[0], {})], lambda w: None)
         self.assertIn('\\sbkpage\\pgncont\\pgnlcrm', RtfWriter(lambda s: None).write(same))
 
+    def test_file_that_ends_with_a_table(self):
+        table = m.Table([100], [m.Row('body', [m.Cell([m.Paragraph([m.Text('in')], 'Body')])])])
+        first = m.Document(blocks=[table], pages=m.PageLayout())
+        second = m.Document(blocks=[m.Paragraph([m.Text('after')], 'Body')], pages=m.PageLayout())
+        from mifdoc.combine import combine
+        out = RtfWriter(lambda s: None).write(combine([('a.mif', first, {}), ('b.mif', second, {})],
+                                                      lambda w: None))
+        # the section break is a paragraph of its own, outside the table (\pard ends \intbl)
+        self.assertIn('\\row\n\\pard\\plain\\sect\\sectd', out)
+
     def test_no_headers(self):
         root = mif.parse(PAGES_MIF)
         doc = Builder(root, os.path.join(SAMPLE, 'pages.mif'), warn=lambda w: None, pages=True,

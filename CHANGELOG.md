@@ -6,6 +6,11 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `mif2rtf --combine`: when a file ended with a table, the text of the next file could
+  end up in that table in Word; the section break now has a paragraph of its own.
+
 ## [0.8.0] - 2026-11-19
 
 ### Added
