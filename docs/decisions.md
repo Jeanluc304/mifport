@@ -72,6 +72,14 @@ flow it's kept for ordinary paragraphs only: a heading or list item without text
 an empty heading or bullet in Markdown and AsciiDoc. A paragraph with hidden conditional
 text stays out, because FrameMaker hides its number too.
 
+**Captions get Word's Caption style, not their tag name.** A Word paragraph has one
+style. The built-in *Caption* is what Word's table of figures and document importers look
+for, so it wins over the FrameMaker name; the FrameMaker look stays as direct formatting.
+Caption numbers stay text by default: Word's `SEQ` fields count through the whole document,
+and updating them would turn "Figure 2-3" into "Figure 7". `--caption-numbers simple` asks
+for exactly that, and then also changes the number in cross-references to the caption,
+found by their target. Numbers typed as plain text cannot be found and stay as they are.
+
 **Table titles keep their number separately (`Table.label`).** pandoc and Asciidoctor
 add "Table 1:" themselves; GFM has no captions, so its writer prints the label.
 
@@ -248,3 +256,16 @@ readable; the user can apply a table style in Word.
 **Fonts are named as in FrameMaker.** Word and Writer substitute missing fonts
 themselves; mapping names (`Times` → `Times New Roman`) would guess wrongly as often as
 right.
+
+**Combined files are sections, built one by one.** `--combine` builds every MIF file on
+its own, as a single conversion would, and puts the documents together afterwards
+(`combine.py`); the builder stays a converter of one file. What has to be the same
+across the files is passed in: the heading levels (ranked from the tags of all files)
+and the heading level the file before ended on. Each later file is an RTF section with
+its own headers and footers, written explicitly empty where it has none, since Word would
+otherwise repeat the section before. Page numbers continue rather than following each
+chapter's `DStartPage`, which FrameMaker computed from its own page count. Cross-references
+to another file name it by file name without extension (`<c\>ch2.fm` → `ch2`), which matches
+the MIF file saved from it under the same name. The default order is the file names, with
+appendices last, because FrameMaker's book file, which holds the real order, is usually
+not saved as MIF; a list file covers the rest.

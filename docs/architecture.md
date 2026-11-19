@@ -44,6 +44,7 @@ something. Then add a model type first (see [extending.md](extending.md)).
 | `rtf.py` | Model → RTF, FrameMaker's formats as Word styles | `RtfWriter.write`, `esc` |
 | `dump.py` | Model → readable tree (`--dump`) | `dump` |
 | `style.py` | `Document.style` → pandoc defaults file or asciidoctor-pdf theme (`--style`) | `pandoc_defaults`, `asciidoctor_theme` |
+| `combine.py` | Several built documents → one (`mif2rtf --combine`): file order, renaming shared anchor ids, links between the files | `combine`, `file_order`, `read_order` |
 | `convert.py` | Command line options, graphics copying, warnings | `arguments`, `run` |
 
 ## The document model
@@ -54,14 +55,15 @@ Blocks:
 |---|---|---|
 | `Document` | `title` (inlines), `lang`, `blocks`, `style`, `title_tag`, `formats`, `char_formats` | `title` comes from the first `title` paragraph; `style` (page size, margins, `FontStyle` per role) is used by `style.py` and for the RTF page setup; `formats` (tag → `ParaFormat`) and `char_formats` (tag → `CharFormat`) only by the RTF writer |
 | `Heading` | `level` (1–6), `inlines`, `anchors`, `id`, `number`, `local` | `anchors` are ids of cross-reference targets in the heading; `id` is a unique id for the other headings; `number` is FrameMaker's autonumber, only written to RTF |
-| `Paragraph` | `inlines`, `local` | |
+| `Paragraph` | `inlines`, `local`, `caption` | `caption` marks a figure or table title; only the RTF writer uses it |
 | `CodeBlock` | `text`, `local` | Consecutive code paragraphs with the same tag, joined with `\n` |
 | `Quote` | `blocks` | |
 | `ListBlock` | `ordered`, `start`, `items`, `marker` | Each item is a list of blocks: its paragraph, then nested lists, continuation paragraphs, tables, images; `marker` (a `ListMarker`) is FrameMaker's number format, used only by the RTF writer |
-| `Table` | `widths` (pt), `rows`, `title`, `label`, `anchors`, `title_below` | `label` is FrameMaker's number ("Table 1: "), kept apart because pandoc and Asciidoctor number tables themselves |
+| `Table` | `widths` (pt), `rows`, `title`, `label`, `anchors`, `title_below`, `title_tag` | `label` is FrameMaker's number ("Table 1: "), kept apart because pandoc and Asciidoctor number tables themselves; `title_tag` is the title's paragraph tag, for the RTF writer |
 | `Row` | `kind` (`head`/`body`/`foot`), `cells`, `height` | One entry per column; `None` where a merged cell covers the column. `height` is only used by the RTF writer |
 | `Cell` | `blocks`, `colspan`, `rowspan`, `angle` | `angle` (0, 90, 180, 270) is only used by the RTF writer |
 | `ImageBlock` | `image` | A graphic on its own line |
+| `ChapterBreak` | `name`, `pages` | The start of the next MIF file in a combined document: a new page and section with that file's `PageLayout`; only made by `combine.py`, only written by the RTF writer |
 
 `Heading`, `Paragraph` and `CodeBlock` also carry `tag`, the FrameMaker paragraph tag
 they came from, and `local`, a `ParaFormat` set only when the paragraph overrides its
@@ -90,7 +92,7 @@ Inlines:
 | `FootnoteRef` | `blocks` | The footnote's content, inline where it is referenced |
 | `IndexTerm` | `levels` | `['primary', 'secondary']` |
 | `Image` | `source`, `name`, `width_pt`, `width_pct`, `alt`, `href` | `href` is set by `convert.place_images` |
-| `PageVariable` | `name`, `parts` | A variable that needs pages (page numbers, running headers); `parts` are `Text` and `FieldCode` (`page`, `pages`, `styleref` with the tag in `arg`). The Markdown and AsciiDoc writers remove them first (`model.drop_page_variables`) and warn |
+| `PageVariable` | `name`, `parts` | A variable that needs pages (page numbers, running headers); `parts` are `Text` and `FieldCode` (`page`, `pages`, `styleref` with the tag in `arg`; `seq`, a caption number, appears directly in the inlines only after `model.simple_caption_numbers`). The Markdown and AsciiDoc writers remove them first (`model.drop_page_variables`) and warn |
 
 ## The builder in order
 

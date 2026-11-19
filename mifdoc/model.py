@@ -3,6 +3,7 @@
 The builder fills it from MIF; the Markdown and AsciiDoc writers only read it. It knows
 nothing about FrameMaker and nothing about output syntax.
 """
+import re
 from dataclasses import dataclass, field
 
 # Inline styles (members of Text.style)
@@ -79,7 +80,8 @@ class Image:
 class FieldCode:
     """A value only a paginated document knows: 'page' (current page number), 'pages'
     (number of pages) or 'styleref' (the text of the nearest paragraph with tag `arg`,
-    a running header). `text` is shown until the word processor updates it."""
+    a running header), or 'seq' (a caption number; `arg` is the counter, such as
+    'Figure'). `text` is shown until the word processor updates it."""
     kind: str
     arg: str = ''
     text: str = ''
@@ -117,6 +119,7 @@ class Paragraph:
     inlines: list
     tag: str = ''
     local: 'ParaFormat' = None
+    caption: bool = False  # a figure or table title; only the RTF writer uses it
 
 
 @dataclass
@@ -184,6 +187,16 @@ class Table:
     label: str = ''        # FrameMaker's number for the title, e.g. 'Table 3: '
     anchors: list = field(default_factory=list)
     title_below: bool = False  # FrameMaker places the title below the table
+    title_tag: str = ''    # the title's paragraph tag; only the RTF writer uses it
+
+
+@dataclass
+class ChapterBreak:
+    """The start of the next MIF file when several are combined into one document (RTF
+    only): a new page and section, with that file's headers, footers and page numbering
+    (`pages`, None for none)."""
+    name: str = ''         # the MIF file, for --dump
+    pages: 'PageLayout' = None
 
 
 @dataclass
@@ -381,4 +394,104 @@ def drop_page_variables(doc, warn):
     if doc.title is not None:
         doc.title = inl(doc.title)
     doc.blocks = blk(doc.blocks)
+    return doc
+
+
+# A caption's number: the word in front (Figure, Abbildung, Table) and the number, which can
+# count within the chapter ('2-3', '2.3').
+CAPTION_NUMBER = re.compile(r'^(\s*)([^\W\d_]+\.?)(\s*)(\d+(?:[-.\N{EN DASH}]\d+)*)(?![\w])')
+
+
+def simple_caption_numbers(doc):
+    """A copy of the document with its figures and tables counted through the whole
+    document (Figure 7) instead of per chapter (Figure 2-3). Each word in front of the
+    number has its own counter. The number becomes a 'seq' FieldCode, and cross-references
+    to a caption get the new number in their text."""
+    import copy
+    doc = copy.deepcopy(doc)
+    counters, renumbered = {}, {}   # anchor id -> (old number, new number)
+
+    def count(items, anchors):
+        """Renumber the caption number at the start of `items` (inlines); returns new inlines."""
+        lead = 0
+        while lead < len(items) and not isinstance(items[lead], Text):
+            lead += 1
+        if lead == len(items):
+            return items
+        t = items[lead]
+        found = CAPTION_NUMBER.match(t.text)
+        if not found:
+            return items
+        key = found.group(2).rstrip('.')
+        counters[key] = counters.get(key, 0) + 1
+        new = str(counters[key])
+        for a in anchors:
+            renumbered[a] = (found.group(4), new)
+        parts = [Text(t.text[:found.start(4)], t.style, t.ctag), FieldCode('seq', key, new),
+                 Text(t.text[found.end(4):], t.style, t.ctag)]
+        return items[:lead] + [p for p in parts if not isinstance(p, Text) or p.text] + items[lead + 1:]
+
+    def captions(blocks):
+        for b in blocks:
+            if isinstance(b, Paragraph) and b.caption:
+                b.inlines = count(b.inlines, [i.id for i in b.inlines if isinstance(i, Anchor)])
+            elif isinstance(b, Quote):
+                captions(b.blocks)
+            elif isinstance(b, ListBlock):
+                for item in b.items:
+                    captions(item)
+            elif isinstance(b, Table):
+                if not b.title_below:
+                    table_title(b)
+                for row in b.rows:
+                    for c in row.cells:
+                        if c:
+                            captions(c.blocks)
+                if b.title_below:
+                    table_title(b)
+
+    def table_title(t):
+        if t.title is None and not t.label:
+            return
+        title = ([Text(t.label)] if t.label else []) + (t.title or [])
+        new = count(title, t.anchors)
+        if new is not title:
+            t.label, t.title = '', new
+
+    def fix(o, target):
+        """Replace the old number by the new one in the text of a cross-reference."""
+        old, new = renumbered[target]
+        pattern = re.compile(r'(?<![\d.\-\N{EN DASH}])' + re.escape(old) + r'(?![\d]|[-.\N{EN DASH}]\d)')
+        for i, c in enumerate(o.children):
+            if isinstance(c, Text) and pattern.search(c.text):
+                o.children[i] = Text(pattern.sub(new, c.text, count=1), c.style, c.ctag)
+                return
+
+    def links(items):
+        for i in items or []:
+            if isinstance(i, Link):
+                if i.internal and i.target in renumbered:
+                    fix(i, i.target)
+                links(i.children)
+            elif isinstance(i, FootnoteRef):
+                refs(i.blocks)
+
+    def refs(blocks):
+        for b in blocks:
+            if isinstance(b, (Heading, Paragraph)):
+                links(b.inlines)
+            elif isinstance(b, Quote):
+                refs(b.blocks)
+            elif isinstance(b, ListBlock):
+                for item in b.items:
+                    refs(item)
+            elif isinstance(b, Table):
+                links(b.title)
+                for row in b.rows:
+                    for c in row.cells:
+                        if c:
+                            refs(c.blocks)
+
+    captions(doc.blocks)
+    refs(doc.blocks)
     return doc

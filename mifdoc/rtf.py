@@ -113,14 +113,23 @@ def image_size(data):
     return None
 
 
+CAPTION = '\0caption'   # the key of Word's built-in Caption style among the paragraph tags
+
+
 class RtfWriter:
-    def __init__(self, warn=print):
+    def __init__(self, warn=print, caption_numbers='chapter'):
+        """`caption_numbers`: 'chapter' keeps FrameMaker's numbers of figures and tables as
+        text; 'simple' counts them through the document as Word fields (Figure 7)."""
         self.warn = warn
+        self.caption_numbers = caption_numbers
 
     # ---------- document ----------
 
     def write(self, doc):
+        if self.caption_numbers == 'simple':
+            doc = m.simple_caption_numbers(doc)
         self.doc = doc
+        self.caption_tag = None  # the tag whose format defines the Caption style
         self.fonts = [DEFAULT_FONT]
         self.colors = []
         self.styles = {}       # paragraph tag -> style number (0 is Normal)
@@ -128,6 +137,7 @@ class RtfWriter:
         self.outline = {}      # paragraph tag -> outline level of its first heading
         self.bookmarks = {}    # anchor id -> bookmark name
         self.lists = []        # list definitions: (list id, ordered, start)
+        self.page_style = None  # page number style of the section written last
         st = doc.style or m.Style()
         self.text_width = (st.page_width - st.margins[1] - st.margins[3]
                            if st.page_width and len(st.margins) == 4 else 450.0)
@@ -135,6 +145,8 @@ class RtfWriter:
         lang = LCID.get(doc.lang) or LCID.get(doc.lang.split('-')[0], 1033) if doc.lang else 1033
         self.lang = lang
 
+        if doc.pages:  # for the sections of further MIF files (the first is written last)
+            self.page_style = doc.pages.number_style
         body = []
         if doc.title:
             body.append(self.para(doc.title, doc.title_tag))
@@ -177,6 +189,11 @@ class RtfWriter:
         normal = self.doc.formats.get('Body') or m.ParaFormat(family=DEFAULT_FONT)
         out = ['{\\stylesheet{\\s0\\ql ', self.char_props(normal), ' Normal;}\n']
         for tag, n in sorted(self.styles.items(), key=lambda x: x[1]):
+            if tag == CAPTION:   # Word's own name, so that Word and importers know it
+                fmt = self.doc.formats.get(self.caption_tag, normal)
+                props = self.para_props(fmt) + self.char_props(fmt)
+                out.append('{\\s%d%s\\sbasedon0\\snext0 caption;}\n' % (n, props))
+                continue
             fmt = self.doc.formats.get(tag, normal)
             level = self.outline.get(tag)
             props = self.para_props(fmt, level) + self.char_props(fmt)
@@ -202,13 +219,20 @@ class RtfWriter:
             s += r'\facingp\margmirror'
         return s + r'\sectd\sbknone'
 
-    def section(self, pl):
+    def section(self, pl, follow=False):
         r"""Page numbering, header and footer position, and the headers and footers of
-        the (only) section. Two-sided documents get \headerl/\headerr; a first page with a
-        master page of its own gets \titlepg and \headerf/\footerf."""
+        a section: the whole document, or one MIF file of several (`follow`: not the
+        first). Two-sided documents get \headerl/\headerr; a first page with a master page
+        of its own gets \titlepg and \headerf/\footerf. A following file continues the page
+        numbers unless it numbers its pages in another style (roman after the front matter)."""
         if pl is None:
             return ''
-        s = r'\pgnstarts%d\pgnrestart%s' % (max(1, pl.start), PAGE_NFC.get(pl.number_style, r'\pgndec'))
+        style = PAGE_NFC.get(pl.number_style, r'\pgndec')
+        if follow and pl.number_style == self.page_style:
+            s = r'\pgncont' + style
+        else:
+            s = r'\pgnstarts%d\pgnrestart%s' % (max(1, pl.start), style)
+        self.page_style = pl.number_style
         if pl.header_top:
             s += r'\headery%d' % tw(pl.header_top)
         if pl.footer_bottom:
@@ -218,10 +242,11 @@ class RtfWriter:
         two_sided = self.doc.style is not None and self.doc.style.two_sided
         parts = []
 
-        def region(word, blocks, empty=False):
+        def region(word, blocks, empty=follow):
             if blocks:
                 parts.append('{\\%s ' % word + ''.join(self.blocks(blocks)) + '}')
-            elif empty:  # explicitly empty, so that Word does not show another one
+            elif empty:  # explicitly empty, so that Word does not show another one (or
+                # that of the section before)
                 parts.append('{\\%s \\pard\\plain\\par}' % word)
 
         if two_sided:
@@ -241,6 +266,9 @@ class RtfWriter:
 
     def style_no(self, tag):
         """The paragraph style number of a tag, registering it on first use (0 = Normal)."""
+        if tag == CAPTION:
+            self.styles.setdefault(CAPTION, len(self.styles) + len(self.cstyles) + 1)
+            return self.styles[CAPTION]
         if not tag or tag not in self.doc.formats:
             return 0
         if tag not in self.styles:
@@ -310,13 +338,16 @@ class RtfWriter:
             s += {'super': r'\super', 'sub': r'\sub'}.get(c.position, r'\nosupersub')
         return s
 
-    def pard(self, tag, extra='', level=None, grow=False, style=True, local=None):
+    def pard(self, tag, extra='', level=None, grow=False, style=True, local=None, caption=False):
         r"""\pard ... for a paragraph of tag `tag`. The formatting is repeated as direct
         formatting, because RTF readers take a paragraph's look from the control words, not
         from the style it names: the style's, or the paragraph's own (`local`) if it
-        overrides its tag in FrameMaker. `style=False` leaves out the style reference."""
+        overrides its tag in FrameMaker. `style=False` leaves out the style reference;
+        `caption` names Word's Caption style instead of the tag's."""
         f = local or self.doc.formats.get(tag)
-        n = self.style_no(tag) if style else 0
+        if caption and self.caption_tag is None and tag in self.doc.formats:
+            self.caption_tag = tag
+        n = self.style_no(CAPTION if caption else tag) if style else 0
         s = r'\pard\plain' + (r'\s%d' % n if n else '') + extra
         if f is None:
             f = m.ParaFormat(family=DEFAULT_FONT)
@@ -331,8 +362,12 @@ class RtfWriter:
     def blocks(self, blocks, extra=''):
         out = []
         previous = None
-        for b in blocks:
-            self.add(out, self.block(b, extra), b, previous, extra)
+        for i, b in enumerate(blocks):
+            after = blocks[i + 1] if i + 1 < len(blocks) else None
+            # a figure stays on the page of the caption below it
+            keep = (r'\keepn' if isinstance(b, m.ImageBlock) and isinstance(after, m.Paragraph)
+                    and after.caption else '')
+            self.add(out, self.block(b, extra + keep), b, previous, extra)
             previous = b
         return out
 
@@ -351,7 +386,7 @@ class RtfWriter:
         if isinstance(b, m.Heading):
             return self.heading(b, extra)
         if isinstance(b, m.Paragraph):
-            return self.para(b.inlines, b.tag, extra, b.local)
+            return self.para(b.inlines, b.tag, extra, b.local, b.caption)
         if isinstance(b, m.CodeBlock):
             text = esc(b.text)   # its lines become \line: one paragraph, as in FrameMaker
             if b.tag in self.doc.formats:
@@ -370,6 +405,8 @@ class RtfWriter:
             return self.table(b)
         if isinstance(b, m.ImageBlock):
             return self.pard('', extra, grow=True) + self.image(b.image) + '\\par\n'
+        if isinstance(b, m.ChapterBreak) and not extra:
+            return '\\sect\\sectd\\sbkpage' + self.section(b.pages, follow=True) + '\n'
         return ''
 
     def heading(self, h, extra=''):
@@ -381,9 +418,10 @@ class RtfWriter:
         return (self.pard(h.tag, extra, level=h.level, grow=grow, local=h.local) + number + start
                 + self.inlines(h.inlines) + end + '\\par\n')
 
-    def para(self, inlines, tag, extra='', local=None):
+    def para(self, inlines, tag, extra='', local=None, caption=False):
         grow = any(isinstance(i, m.Image) for i in inlines)
-        return self.pard(tag, extra, grow=grow, local=local) + self.inlines(inlines) + '\\par\n'
+        return (self.pard(tag, extra, grow=grow, local=local, caption=caption)
+                + self.inlines(inlines) + '\\par\n')
 
     # ---------- lists ----------
 
@@ -457,10 +495,13 @@ class RtfWriter:
         if t.title is not None or t.label:
             title = ([m.Text(t.label)] if t.label else []) + (t.title or [])
             marks = [self.bookmark(a) for a in t.anchors]
-            caption = (self.pard('', r'\keepn' if not t.title_below else '',
-                                 grow=any(isinstance(i, m.Image) for i in title))
+            # in the title's own FrameMaker format, else bold as before there was one
+            known = t.title_tag in self.doc.formats
+            caption = (self.pard(t.title_tag if known else '', r'\keepn' if not t.title_below else '',
+                                 grow=any(isinstance(i, m.Image) for i in title), caption=True)
                        + ''.join(r'{\*\bkmkstart %s}{\*\bkmkend %s}' % (b, b) for b in marks)
-                       + r'{\b ' + self.inlines(title) + '}\\par\n')
+                       + (self.inlines(title) if known else r'{\b ' + self.inlines(title) + '}')
+                       + '\\par\n')
         elif t.anchors:
             out.append(self.pard('') + ''.join(r'{\*\bkmkstart %s}{\*\bkmkend %s}' % (b, b)
                                                 for b in (self.bookmark(a) for a in t.anchors)) + '\\par\n')
@@ -561,6 +602,8 @@ class RtfWriter:
         if isinstance(i, m.PageVariable):
             return ''.join(self.text(p) if isinstance(p, m.Text) else self.field_code(p)
                            for p in i.parts)
+        if isinstance(i, m.FieldCode):
+            return self.field_code(i)
         return ''
 
     def field_code(self, fc):
@@ -569,6 +612,9 @@ class RtfWriter:
             return self.field('PAGE', esc(fc.text))
         if fc.kind == 'pages':
             return self.field('NUMPAGES', esc(fc.text))
+        if fc.kind == 'seq':   # Word counts each name on its own: SEQ Figure, SEQ Table
+            name = re.sub(r'\W+', '_', fc.arg) or 'Caption'
+            return self.field('SEQ %s \\\\* ARABIC' % esc(name), esc(fc.text))
         if fc.kind == 'styleref':
             if fc.arg not in self.doc.formats:
                 # Word would show "Error! No text of specified style in document."

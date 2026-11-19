@@ -83,12 +83,17 @@ python3 mif2rtf.py -r chapters/ out/      # also the subfolders, repeated under 
 Warnings start with the file name. A file that fails is reported and the others are still
 converted; the last line says how many were converted and which failed, and the exit
 status is 1 if any failed. MIF book files are skipped, since their chapter files are
-converted on their own.
+converted on their own. To get one RTF file for the whole folder, see
+[One RTF for several MIF files](#one-rtf-for-several-mif-files).
 
 | Option | Meaning |
 |---|---|
 | `--flavor pandoc` | (mif2md, default) Pandoc's Markdown, made for `pandoc → PDF` |
 | `--flavor gfm` | (mif2md) GitHub Flavored Markdown |
+| `--caption-numbers simple` | (mif2rtf) Number figures and tables through the document (Figure 7) instead of as in FrameMaker (Figure 2-3); see [Captions](#captions) |
+| `--no-headers` | (mif2rtf) Leave out the headers and footers of the master pages |
+| `--combine` | (mif2rtf) With a folder as input, write all its MIF files into one RTF file; see [One RTF for several MIF files](#one-rtf-for-several-mif-files) |
+| `--order FILE` | (mif2rtf, with `--combine`) The order of the files, one name per line |
 | `-r`, `--recursive` | With a folder as input, also convert the MIF files in its subfolders |
 | `--map FILE` | Tag mapping file, see [Paragraph roles](#paragraph-roles) |
 | `--extract-eps` | Also write the EPS version of graphics stored in the MIF file, see [Graphics](#graphics-stored-in-the-mif-file) |
@@ -166,6 +171,8 @@ structure is real Word structure:
   the text that uses them.
 - **Headings** get an outline level, so the navigation pane and an automatic table of
   contents work; FrameMaker's heading numbers ("2.1 ") are kept as text.
+- **Figure and table titles** get Word's built-in *Caption* style, with FrameMaker's look;
+  see [Captions](#captions).
 - **Lists** are Word lists, nested as in FrameMaker, at FrameMaker's indents, with
   FrameMaker's number format: the counter style (`1`, `a`, `A`, `i`, `I`), the text around
   it (`(a)`, `1.`, `[1]`), the bullet character (also bullets typed in Zapf Dingbats,
@@ -195,6 +202,58 @@ and page breaks – Word and Writer lay out the text themselves. Multi-level num
 as `1.2` in a list keep only their last part. LibreOffice starts the page numbering of
 the first section at 1 whatever the RTF says; Word follows it.
 
+#### Captions
+
+Table titles, and paragraphs with the role `caption` (see [Paragraph roles](#paragraph-roles)),
+get Word's built-in *Caption* style instead of their FrameMaker tag name, so that Word and
+document importers know them as captions. Each keeps the font and spacing of its
+FrameMaker format. A figure stays on the same page as a caption directly below it. In
+Word, *Insert › Table of Figures* with the option *Style: Caption* lists them.
+
+The numbers stay as FrameMaker wrote them ("Figure 2-3: "), as text. With
+`--caption-numbers simple`, figures and tables are counted through the document instead
+("Figure 7: "), each word in front of the number (Figure, Table, Abbildung …) with its own
+counter. The numbers become Word `SEQ` fields, and cross-references to a figure or table
+get the new number in their text. Counting is per MIF file, so chapters in separate files
+each start at 1 (unless they are combined into one RTF, see below), and a number typed as
+plain text ("see Figure 2-3" without a cross-reference) stays unchanged.
+
+#### Without headers and footers
+
+`--no-headers` leaves out the headers and footers of the master pages. The page
+numbering (first number and style) stays.
+
+#### One RTF for several MIF files
+
+When a book is kept as one MIF file per chapter, `--combine` writes the MIF files of a
+folder into one RTF file:
+
+```
+python3 mif2rtf.py --combine chapters/            # writes chapters.rtf next to the folder
+python3 mif2rtf.py --combine chapters/ book.rtf
+python3 mif2rtf.py --combine --order order.txt chapters/ book.rtf
+```
+
+The files are taken in the order of their names, numbers counted as numbers (`ch_2`
+before `ch_10`); appendices – names starting with `app`, `appendix` or `anhang` followed
+by something other than a lower-case letter (`app_a`, `AppB`, `Appendix1`) – come after
+all other files, in name order among themselves (`app_a`, `app_a2`, `app_b`). The order
+is printed before the file is written. For any other order, list the files in a text
+file and give it with `--order`: one name per line (with or without `.mif`, with its
+subfolder under `-r`), empty lines and lines starting with `#` ignored; files it does not
+list are left out with a warning.
+
+Each file starts on a new page, in a section of its own with that file's headers and
+footers; the page numbers continue, unless a file numbers its pages in another style
+(roman front matter, then arabic), which starts again at its first page number. The
+title of a later file is kept as a paragraph in its own format. Cross-references between
+the files become links; those to files outside the folder stay text, with a warning.
+Heading levels are worked out from all files together, so a chapter that has only
+`Heading2` paragraphs keeps them on level 2. Styles are made from the first file that
+uses a format; a format defined differently in another file is reported. The page size
+and margins are those of the first file. MIF book files in the folder are skipped.
+`--dump` shows the combined document; `--list-tags` lists each file on its own.
+
 ## Paragraph roles
 
 FrameMaker paragraph tags are free names, so the tools have to guess what each tag is.
@@ -207,8 +266,11 @@ The role of a tag comes from, in this order:
    `ChapHead`, `SubHead`, `H-Hed` and `2Hed` (but not `HeadNote`, nor `TableTitle`,
    `CellHeading`, `ColumnHead`, `BodyAfterHead`, `RunningHead`, `HeadingRunIn`, TOC and
    index formats …); `Code` and `Listing` are code;
-   `Quote`, `Zitat` and `Extract` are quotes (the full rules are in `mifdoc/roles.py`);
-3. the autonumber format: a symbol such as `•\t` makes a bulleted list (also a letter in
+   `Quote`, `Zitat` and `Extract` are quotes; figure and table titles such as
+   `FigureTitle…`, `TableTitle`, `Caption`, `Abbildungstitel`, `Bildunterschrift` and
+   FrameMaker's standard `Figure` are captions (the full rules are in `mifdoc/roles.py`);
+3. the autonumber format: one that starts with Figure, Table, Abbildung or Tabelle (`F:Figure
+   <n+>: `) makes a caption; a symbol such as `•\t` makes a bulleted list (also a letter in
    a symbol font, such as `l` in Zapf Dingbats, which shows as ●), a counter such as
    `<n+>.\t` a numbered list (`<n=1>` starts a new list);
 4. the font: a monospaced font makes a code block;
@@ -225,7 +287,7 @@ Body            11  paragraph
 Bulleted         2  bullet
 Bulleted2        1  bullet
 Code             2  code
-Figure           1  paragraph
+Figure           1  caption
 Footnote         1  paragraph
 Heading1         1  heading1
 Heading2         3  heading2
@@ -256,7 +318,8 @@ If a guess is wrong, write a mapping file (see `mapping.example.json`):
 ```
 
 Paragraph roles: `title`, `heading`, `heading1` … `heading6`, `paragraph`, `bullet`,
-`numbered`, `code`, `quote`, `skip`. Character roles (combine with spaces): `plain`,
+`numbered`, `code`, `quote`, `caption`, `skip`. `caption` only changes the RTF (see
+[Captions](#captions)); Markdown and AsciiDoc write captions as normal paragraphs. Character roles (combine with spaces): `plain`,
 `bold`, `italic`, `code`, `superscript`, `subscript`, `underline`, `strike`. Without a
 mapping, character formatting is taken from the font properties (weight, angle, family,
 position) relative to the paragraph's font.
@@ -385,6 +448,7 @@ mifdoc/
   markdown.py   document model -> Markdown (pandoc and gfm)
   asciidoc.py   document model -> AsciiDoc
   rtf.py        document model -> RTF, with FrameMaker's formats as styles
+  combine.py    several MIF files in one document (mif2rtf --combine)
   convert.py    shared command line handling, graphics copying
   frameimage.py graphics stored in the MIF file (FrameImage) -> PNG
   dump.py       the document model as a readable tree (--dump)

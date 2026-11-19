@@ -17,7 +17,7 @@ from .formats import (Formats, is_bold, is_italic, is_mono, is_underlined, lengt
                       COUNTER_BLOCK, SERIES, list_marker, numbering, symbol_bullet)
 from .frameimage import to_png
 from .mif import Node
-from .roles import Mapping, is_sub, tag_number, tag_role
+from .roles import CAPTION_FORMAT, Mapping, is_sub, tag_number, tag_role
 
 # Char statements -> text. None means a line break; '' means nothing visible.
 CHARS = {
@@ -167,12 +167,39 @@ def di_path(di):
     return os.path.join(*parts) if parts else ''
 
 
+def rank_headings(keys):
+    """Heading level for every heading tag, from tag -> (minus the font size, 'Sub' in the
+    name, the number in the name).
+
+    Tags are ranked by font size (larger first), then by 'Sub' in the name (Heading
+    before SubHeading), then by the number in the tag name (Heading1 before Heading2;
+    no number counts as 1); the rank is the level. Files that are combined are ranked
+    together, so that a chapter without top-level headings keeps the levels of the others.
+    """
+    ranked = sorted(set(keys.values()))
+    return {tag: ranked.index(k) + 1 for tag, k in keys.items()}
+
+
+def file_target(di, marker_text):
+    """The link target of a cross-reference to another file, until the files are combined:
+    the file's name without folder and extension (lower case) and the marker text."""
+    path = di_path(di) if '<' in di else di
+    name = os.path.splitext(re.split(r'[\\/]', path)[-1])[0].lower()
+    return f'\0{name}\0{marker_text}'
+
+
 class Builder:
-    def __init__(self, root, mif_path, mapping=None, warn=print, pages=False, image_dir=None):
-        """`pages`: also read headers and footers from the master pages (for outputs with
-        pages, RTF). `image_dir`: where to look for pictures that replace drawn frames."""
+    def __init__(self, root, mif_path, mapping=None, warn=print, pages=False, image_dir=None,
+                 headers=True, link_files=False):
+        """`pages`: also read the page numbering and, if `headers`, the headers and footers
+        from the master pages (for outputs with pages, RTF). `image_dir`: where to look for
+        pictures that replace drawn frames. `link_files`: cross-references to other files
+        become links to `file_target(file, marker text)`, for combining files into one
+        document; otherwise they are text."""
         self.root = root
         self.read_pages = pages
+        self.read_headers = headers
+        self.link_files = link_files
         self.mif_path = mif_path
         self.mif_dir = os.path.dirname(os.path.abspath(mif_path))
         self.map = mapping or Mapping()
@@ -202,13 +229,18 @@ class Builder:
         self.column_width = self._column_width()
         self.body_paras = [p for f in self.flows for p in f.find('Para')]
         self.lang = self._language()
-        self.heading_levels = self._heading_levels()
+        self.heading_keys = self._heading_keys()
+        self.heading_levels = rank_headings(self.heading_keys)
         self.used_ids = Counter()  # anchor ids handed out, to keep them unique
         self.anchors = self._xref_targets()
         self.used_tags = {}        # paragraph tag -> resolved format of its first paragraph
         self.used_ctags = set()    # character formats applied to text
         self.tag_formats = {}      # paragraph tag -> ParaFormat of its style
         self.in_master = False     # building headers and footers of master pages
+        # the heading level before the first heading: 0, or that of the file before when
+        # files are combined (headings may go at most one level deeper than the one before)
+        self.level_before = 0
+        self.last_level = 0
 
     def warn(self, msg):
         if msg not in self._warned:
@@ -322,6 +354,8 @@ class Builder:
             return pl
         pl.start = int(float(doc.val('DStartPage') or 1) or 1)
         pl.number_style = PAGE_NUM_STYLE.get(doc.val('DPageNumStyle') or '', 'decimal')
+        if not self.read_headers:
+            return pl
         page_height = (lengths(doc.val('DPageSize')) + [0, 0])[1]
         masters = {}
         for page in self.root.all('Page'):
@@ -447,6 +481,8 @@ class Builder:
         r = tag_role(tag)
         if r:
             return r
+        if props.get('PgfAutoNum') == 'Yes' and CAPTION_FORMAT.match(props.get('numformat') or ''):
+            return 'caption'
         kind, _ = numbering(self.shown_numformat(props) if props.get('PgfAutoNum') == 'Yes' else None)
         if kind:
             return 'bullet' if kind == 'bullet' else 'numbered'
@@ -466,13 +502,8 @@ class Builder:
         cut = series.end() if series else 0
         return fmt[:cut] + symbol_bullet(fmt[cut:], family)
 
-    def _heading_levels(self):
-        """Heading level for every tag with the role 'heading'.
-
-        Tags are ranked by font size (larger first), then by 'Sub' in the name (Heading
-        before SubHeading), then by the number in the tag name (Heading1 before Heading2;
-        no number counts as 1); the rank is the level.
-        """
+    def _heading_keys(self):
+        """The ranking key (see rank_headings) of every tag with the role 'heading'."""
         keys = {}
         for p in self.body_paras:
             props = self.formats.of(p)
@@ -481,8 +512,7 @@ class Builder:
                 num = tag_number(props['tag'])
                 keys[props['tag']] = (-round(size, 1), is_sub(props['tag']),
                                       num if num is not None else 1)
-        ranked = sorted(set(keys.values()))
-        return {tag: ranked.index(k) + 1 for tag, k in keys.items()}
+        return keys
 
     def _xref_targets(self):
         """Cross-reference marker text -> anchor id, for every target in the file."""
@@ -530,7 +560,7 @@ class Builder:
         blocks = []
         for flow in self.flows:
             blocks += self.blocks(flow.all('Para'), top=True)
-        out, prev = [], 0
+        out, prev = [], self.level_before
         for b in blocks:
             if isinstance(b, m.Heading) and b.level == 0:  # a 'title' paragraph
                 if doc.title is None:
@@ -547,6 +577,7 @@ class Builder:
                     b.id = base if self.used_ids[base] == 1 else f'{base}-{self.used_ids[base]}'
             out.append(b)
         doc.blocks = out
+        self.last_level = prev
         if self.read_pages:  # after the body, so that body formats come first
             doc.pages = self.page_layout()
         # Styles are defined from the catalog format, so that a local override on the first
@@ -589,8 +620,9 @@ class Builder:
         empty = not m.plain(inlines).strip() and not any(isinstance(i, keep) for i in inlines)
         out = []
         if empty and self.label_only(para, role, top):
-            out.append(('para', self._label(para.str('PgfNumString'), inlines, anchors, props,
-                                            self.local_format(props)), props))
+            p = self._label(para.str('PgfNumString'), inlines, anchors, props, self.local_format(props))
+            p.caption = role == 'caption'
+            out.append(('para', p, props))
         elif empty:
             for b in after:  # anchors of an empty paragraph go to the table below it
                 if isinstance(b, m.Table):
@@ -607,7 +639,7 @@ class Builder:
         heading or list item stays out, and so does a paragraph whose text is hidden."""
         if not (para.str('PgfNumString') or '').strip():
             return False
-        if top and role not in ('paragraph', 'quote'):
+        if top and role not in ('paragraph', 'quote', 'caption'):
             return False
         return not any(self.is_hidden(st) for line in para.all('ParaLine')
                        for st in line.children if st.name == 'Conditional')
@@ -636,6 +668,10 @@ class Builder:
             return ('item', item, props)
         if role == 'code':
             return ('code', m.plain(inlines), props)
+        if role == 'caption':
+            p = self._label(numstr, inlines, anchors, props, local)
+            p.caption = True
+            return ('para', p, props)
         if role == 'quote':
             return ('quote', self._label(numstr, inlines, anchors, props, local), props)
         return ('para', self._label(numstr, inlines, anchors, props, local), props)
@@ -814,7 +850,10 @@ class Builder:
                             emit(m.Text(text, style, ctag))
                 elif n == 'XRef':
                     if st.str('XRefSrcFile'):
-                        xref = (None, [], '', '', '')
+                        target = None
+                        if self.link_files:
+                            target = file_target(st.str('XRefSrcFile'), st.str('XRefSrcText', ''))
+                        xref = (target, [], '', '', '')
                     elif st.val('XRefSrcIsElem') == 'Yes':
                         self.warn('cross-references to elements of a structured document are '
                                   'kept as text')
@@ -995,7 +1034,7 @@ class Builder:
         fmt, format_widths, hidden_cols = self.table_format(tbl)
         ncols = int(tbl.val('TblNumColumns', '0') or 0)
         widths = [length(w.value) for w in tbl.all('TblColumnWidth')] or format_widths
-        title, label, anchors = None, '', []
+        title, label, anchors, title_tag = None, '', [], ''
         placement = fmt.get('TblTitlePlacement', 'InHeader')
         # TblTitleContent is in a TblTitle (MIF Reference) or directly in the Tbl
         content = (tbl.get('TblTitle') or tbl).get('TblTitleContent')
@@ -1003,6 +1042,8 @@ class Builder:
             parts = []
             for para in content.all('Para'):  # not the title's footnotes, which are in Notes
                 props = self.formats.of(para)
+                title_tag = title_tag or props['tag']
+                self.used_tags.setdefault(props['tag'], props)
                 label = label or (para.str('PgfNumString') or '').replace('\t', ' ').translate(PLAIN)
                 found = self.inlines(para, props, [])
                 anchors += [i.id for i in found if isinstance(i, m.Anchor)]  # cross-reference targets
@@ -1056,7 +1097,8 @@ class Builder:
         if len(widths) < ncols:
             widths = widths + [72.0] * (ncols - len(widths))
         widths = [w for c, w in enumerate(widths[:ncols]) if c not in hidden_cols]
-        return m.Table(widths, rows, title, label, anchors, title_below=placement == 'InFooter')
+        return m.Table(widths, rows, title, label, anchors, title_below=placement == 'InFooter',
+                       title_tag=title_tag)
 
     # ---------- graphics ----------
 
