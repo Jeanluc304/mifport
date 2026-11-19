@@ -6,6 +6,8 @@ All notable changes to this project are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-19
+
 ### Fixed
 
 - `mif2rtf --combine`: when a file ended with a table, the text of the next file could
@@ -180,7 +182,8 @@ First release.
 - Documentation for maintainers (`docs/`), a generated sample document with expected
   outputs, and tests.
 
-[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Jeanluc304/mifport/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Jeanluc304/mifport/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Jeanluc304/mifport/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Jeanluc304/mifport/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Jeanluc304/mifport/compare/v0.6.0...v0.6.1
